@@ -11,6 +11,65 @@
       let dialogueCustomReply = '';
       let dialogueTimer = null;
       let dialogueStreamTimer = null;
+      let currentAnyaExpression = 'normal';    // current portrait expression
+
+      // ── Anya expression engine ──
+      function getAnyaExpression(text, isThinking, hasToolResult) {
+        // Priority order: stream of consciousness cues
+        const t = text || '';
+        const zh = currentLanguage === 'zh';
+
+        // Anger first — error, conflict, can't do
+        if (/错误|失败|不能|冲突|无法|抱歉.{0,5}不能|出问题|不行|不可以/i.test(t) ||
+            /error|failed|cannot|sorry.{0,10}can.t|conflict|unable|impossible/i.test(t)) {
+          return 'angry';
+        }
+
+        // Confusion — don't understand, need clarification
+        if (/\?{2,}|不懂|不明白|什么意思|不太清楚|不确定|没听懂|什么[？?]|咦|诶/i.test(t) ||
+            /\?{2,}|don.t understand|not sure|what do you mean|confused|pardon/i.test(t)) {
+          return 'confused';
+        }
+
+        // Lightbulb — created task, found solution, gave idea
+        if (hasToolResult) return 'idea';
+        if (/创建|登记|帮你|搞定|完成.{0,3}了|已经登记|已经创建|试试看|建议|可以这样|好主意|对了/i.test(t) ||
+            /created|registered|done|try this|suggestion|good idea|how about|let.s |I.ve added/i.test(t)) {
+          return 'idea';
+        }
+
+        // Happy — positive, warm, welcoming
+        if (/太好|很棒|不错|欢迎|高兴|开心|哈哈|嘿嘿|没问题|当然|是的|可以|好的呀|来吧|加油|棒|赞/i.test(t) ||
+            /great|welcome|happy|glad|sure|of course|no problem|awesome|wonderful|excellent/i.test(t)) {
+          return Math.random() < 0.5 ? 'happy' : 'happy2';
+        }
+
+        // Thinking — asking questions, processing
+        if (isThinking) return 'thinking';
+        if (/你觉得|你认为|怎么样|要不要|需要.{0,4}[？?]|什么[？?]|哪个|还是|或者/i.test(t) ||
+            /what|which|would you|how about|let me|hmm|think/i.test(t)) {
+          return 'thinking';
+        }
+
+        // Default
+        return 'normal';
+      }
+
+      function setAnyaPortrait(expression) {
+        if (!expression || expression === currentAnyaExpression) return;
+        currentAnyaExpression = expression;
+        const portrait = document.querySelector('.dialogue-portrait');
+        if (!portrait) return;
+        const src = 'assets/anya-' + expression + '.png';
+        if (portrait.src && portrait.src.endsWith(src)) return;
+        // Fade out → swap → fade in
+        portrait.style.transition = 'opacity 200ms ease';
+        portrait.style.opacity = '0';
+        setTimeout(() => {
+          portrait.src = src;
+          portrait.style.opacity = '1';
+        }, 200);
+      }
 
       function dialogueLines() {
         const zh = currentLanguage === 'zh';
@@ -97,7 +156,7 @@
         const lines = dialogueLines();
         const currentText = dialogueCustomReply || lines[dialogueLineIdx];
         if (dialogueCharIdx < currentText.length) { dialogueCharIdx = currentText.length; renderDialogue(); return; }
-        if (!dialogueCustomReply && dialogueLineIdx < lines.length - 1) { dialogueLineIdx++; dialogueCharIdx = 0; renderDialogue(); }
+        if (!dialogueCustomReply && dialogueLineIdx < lines.length - 1) { dialogueLineIdx++; dialogueCharIdx = 0; if (dialogueLineIdx === lines.length - 1) setAnyaPortrait('confused'); renderDialogue(); }
       }
 
       function dialogueHandleOption(type) {
@@ -113,6 +172,7 @@
             ? '「没问题，你可以慢慢摸索。需要帮助时随时点击我的头像呼叫我喔！」'
             : '"No problem — take your time. Tap my portrait anytime to call me back!"';
         }
+        setAnyaPortrait('happy');
         renderDialogue();
         const chatBar = $('#dialogueChatBar');
         if (chatBar) chatBar.style.display = '';
@@ -122,6 +182,7 @@
         dialogueLineIdx = 0; dialogueCharIdx = 0;
         dialogueShowOptions = false; dialogueCustomReply = '';
         dialogueStopTimer();
+        setAnyaPortrait('normal');
         $('#viewContent').classList.add('task-field-hidden');
         $('#dialogueView').classList.remove('task-field-hidden');
         const clearBtn = $('#dialogueClearBtn');
@@ -176,32 +237,21 @@
           }
 
           if (data.type === 'tool_results') {
-            // Check for created tasks — open editor for user review
+            setAnyaPortrait('idea');
+            // Check for draft tasks — open editor for user review (NOT yet created)
             let pendingDraft = null;
             (data.results || []).forEach((r) => {
-              if (r.tool === 'createTask' && r.result && r.result.ok && r.result.task) {
-                const t = r.result.task;
-                pendingDraft = {
-                  type: t.type || 'daily',
-                  title: t.title,
-                  desc: t.desc || '',
-                  due: t.due,
-                  priority: t.priority,
-                  line: t.line || 'Daily',
-                  recurrence: t.recurrence || 'Daily',
-                  start: t.start || t.due,
-                  end: t.end || '',
-                  start_time: t.start_time || '',
-                  end_time: t.end_time || '',
-                };
+              if (r.tool === 'createTask' && r.result && r.result.ok && r.result.draft) {
+                pendingDraft = r.result.draft;
               }
             });
-            // Reload data from server so views reflect tool changes
-            Promise.all([
+            // Reload data only if non-createTask tools ran (updateDesc, deleteTask, etc.)
+            const hasWrite = (data.results || []).some((r) => r.tool !== 'createTask');
+            (hasWrite ? Promise.all([
               loadTasks().then((d) => { if (d.length) tasks = d; }),
               loadQuestBooks().then((d) => { if (d.length) questBooks = d; }),
               loadNotes().then((d) => { if (d.length) notes = d; }),
-            ]).then(() => {
+            ]) : Promise.resolve()).then(() => {
               renderView();
               if (pendingDraft) {
                 setTimeout(() => openEditorWithDraft(pendingDraft), 300);
@@ -237,13 +287,13 @@
         if (clearBtn) clearBtn.style.display = agentMessages.length ? '' : 'none';
 
         if (!hasAPI) {
-          // Offline: brief summary only
           const all = sortByDue(agentAllTasks());
           const today = all.filter((t) => !t.completed && dayDiff(t.due) === 0);
           dialogueCharIdx = 0;
           dialogueCustomReply = currentLanguage === 'zh'
             ? '「我现在没有连接到终端。目前你有 ' + today.length + ' 个今日任务。请先配置 API 再使用我的智能功能。」'
             : '"I\'m not connected right now. You have ' + today.length + ' tasks due today. Please configure an API to enable my smart features."';
+          setAnyaPortrait(getAnyaExpression(dialogueCustomReply, false, false));
           renderDialogue();
           return;
         }
@@ -251,6 +301,7 @@
         // ── Call backend agent ──
         agentIsStreaming = true;
         updateDialogueStatus('thinking');
+        setAnyaPortrait('thinking');
         dialogueCharIdx = 0;
         dialogueCustomReply = '';
         if (textEl) textEl.innerHTML = '<span class="cursor">_</span>';
@@ -303,8 +354,9 @@
             }
           }
 
-          // Save assistant reply
+          // Evaluate expression from full reply
           if (fullText) {
+            setAnyaPortrait(getAnyaExpression(fullText, false, false));
             agentMessages.push({ role: 'anya', text: fullText });
             saveAgentMessages();
           }

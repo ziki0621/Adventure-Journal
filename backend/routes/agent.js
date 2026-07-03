@@ -1,6 +1,6 @@
 const { Router } = require('express');
 const db = require('../db');
-const { buildSystemPrompt, parseToolCalls, executeTool, stripToolCalls } = require('../agent/tools');
+const { buildSystemPrompt, openAiTools, parseToolCalls, executeTool, stripToolCalls } = require('../agent/tools');
 const router = Router();
 
 function publicAgentConfig(config) {
@@ -9,6 +9,100 @@ function publicAgentConfig(config) {
     model: config.model || '',
     hasApiKey: !!config.apiKey,
   };
+}
+
+function normalizeModelMessage(message) {
+  if (!message) return { role: 'assistant', content: '' };
+  return {
+    role: message.role || 'assistant',
+    content: message.content ?? '',
+    ...(message.tool_calls ? { tool_calls: message.tool_calls } : {}),
+  };
+}
+
+function parseToolCallArguments(raw) {
+  if (!raw) return {};
+  if (typeof raw === 'object') return raw;
+  try {
+    return JSON.parse(raw);
+  } catch (e) {
+    return {};
+  }
+}
+
+async function executeStructuredToolCalls(toolCalls) {
+  const results = [];
+  const toolMessages = [];
+  for (const call of toolCalls) {
+    const fn = call.function || {};
+    const name = fn.name || call.name;
+    const params = parseToolCallArguments(fn.arguments || call.arguments);
+    const result = await executeTool(name, params);
+    results.push({ id: call.id, tool: name, params, result });
+    toolMessages.push({
+      role: 'tool',
+      tool_call_id: call.id,
+      name,
+      content: JSON.stringify(result),
+    });
+  }
+  return { results, toolMessages };
+}
+
+function legacyToolResultMessage(toolResults, lang) {
+  return {
+    role: 'user',
+    content: '[SYSTEM] Tool results:\n' + toolResults.map((tr) =>
+      `${tr.tool}: ` + JSON.stringify(tr.result)
+    ).join('\n') + '\n\n' + (lang === 'zh'
+      ? '请根据这些结果继续帮助用户。如果需要更多信息，继续调用工具。如果任务已完成，请生成自然回复。'
+      : 'Please continue based on these results. Call more tools if needed, or generate a natural reply if done.'),
+  };
+}
+
+function isUnsupportedToolsError(status, text) {
+  if (status < 400 || status >= 500) return false;
+  return /tools?|tool_choice|function.?call|tool_calls/i.test(text || '');
+}
+
+async function callModel(config, headers, bodyBase, conversation, options = {}) {
+  const body = {
+    model: bodyBase.model,
+    messages: conversation,
+    stream: false,
+  };
+  if (options.withTools) {
+    body.tools = bodyBase.tools;
+    body.tool_choice = bodyBase.tool_choice;
+  }
+  const response = await fetch(config.apiBase, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(body),
+  });
+  const text = await response.text();
+  if (!response.ok) {
+    const error = new Error('HTTP ' + response.status + ': ' + text.slice(0, 200));
+    error.status = response.status;
+    error.responseText = text;
+    throw error;
+  }
+  return JSON.parse(text || '{}');
+}
+
+async function callModelWithToolFallback(config, headers, bodyBase, conversation, state) {
+  if (state.toolsUnsupported) {
+    return callModel(config, headers, bodyBase, conversation, { withTools: false });
+  }
+  try {
+    return await callModel(config, headers, bodyBase, conversation, { withTools: true });
+  } catch (error) {
+    if (isUnsupportedToolsError(error.status, error.responseText)) {
+      state.toolsUnsupported = true;
+      return callModel(config, headers, bodyBase, conversation, { withTools: false });
+    }
+    throw error;
+  }
 }
 
 // GET messages
@@ -67,31 +161,35 @@ router.post('/chat', async (req, res) => {
   try {
     const headers = { 'Content-Type': 'application/json' };
     if (config.apiKey) headers['Authorization'] = 'Bearer ' + config.apiKey;
-    const bodyBase = { model: config.model || 'default' };
+    const bodyBase = {
+      model: config.model || 'default',
+      tools: openAiTools(),
+      tool_choice: 'auto',
+    };
 
     // ── Phase 1: Tool execution loop (non-streaming) ──
     let allToolResults = [];
+    const providerState = { toolsUnsupported: false };
     const MAX_ITERATIONS = 5;
 
     for (let iter = 0; iter < MAX_ITERATIONS; iter++) {
-      const response = await fetch(config.apiBase, {
-        method: 'POST', headers,
-        body: JSON.stringify({ ...bodyBase, messages: conversation, stream: false }),
-      });
+      const data = await callModelWithToolFallback(config, headers, bodyBase, conversation, providerState);
+      const modelMessage = normalizeModelMessage(data.choices?.[0]?.message);
+      const replyText = modelMessage.content || '';
+      const structuredCalls = Array.isArray(modelMessage.tool_calls) ? modelMessage.tool_calls : [];
 
-      if (!response.ok) {
-        const errText = await response.text().catch(() => '');
-        res.write('data: ' + JSON.stringify({ error: 'HTTP ' + response.status + ': ' + errText.slice(0, 200) }) + '\n\n');
-        res.end();
-        return;
+      if (structuredCalls.length > 0) {
+        const { results: toolResults, toolMessages } = await executeStructuredToolCalls(structuredCalls);
+        allToolResults.push(...toolResults);
+        res.write('data: ' + JSON.stringify({ type: 'tool_results', results: toolResults }) + '\n\n');
+        conversation.push(modelMessage);
+        conversation.push(...toolMessages);
+        continue;
       }
 
-      const data = await response.json();
-      const replyText = data.choices?.[0]?.message?.content || '';
-
-      // Parse tool calls from this reply
-      const calls = parseToolCalls(replyText);
-      if (calls.length === 0) {
+      // Fallback for models/providers that ignore `tools` and emit JSON in text.
+      const legacyCalls = parseToolCalls(replyText);
+      if (legacyCalls.length === 0) {
         // No tool calls — LLM is done. Stream its reply.
         const clean = stripToolCalls(replyText);
         conversation.push({ role: 'assistant', content: replyText });
@@ -102,16 +200,15 @@ router.post('/chat', async (req, res) => {
           res.write('data: ' + JSON.stringify({ type: 'delta', content: char }) + '\n\n');
         }
         if (allToolResults.length > 0) {
-          res.write('data: ' + JSON.stringify({ type: 'tool_results', results: allToolResults }) + '\n\n');
+          res.write('data: ' + JSON.stringify({ type: 'tool_summary', count: allToolResults.length }) + '\n\n');
         }
         res.write('data: [DONE]\n\n');
         res.end();
         return;
       }
 
-      // Execute tools
       const toolResults = [];
-      for (const call of calls) {
+      for (const call of legacyCalls) {
         const result = await executeTool(call.tool, call.params);
         toolResults.push({ tool: call.tool, params: call.params, result });
       }
@@ -121,36 +218,34 @@ router.post('/chat', async (req, res) => {
       // Send tool results as SSE event
       res.write('data: ' + JSON.stringify({ type: 'tool_results', results: toolResults }) + '\n\n');
 
-      // Feed tool results back to conversation
-      const toolMsg = {
-        role: 'user',
-        content: '[SYSTEM] Tool results:\n' + toolResults.map((tr) =>
-          `${tr.tool}: ` + JSON.stringify(tr.result)
-        ).join('\n') + '\n\n' + (lang === 'zh'
-          ? '请根据这些结果继续帮助用户。如果需要更多信息，继续调用工具。如果任务已完成，请生成自然回复。'
-          : 'Please continue based on these results. Call more tools if needed, or generate a natural reply if done.'),
-      };
-
       conversation.push({ role: 'assistant', content: replyText });
-      conversation.push(toolMsg);
+      conversation.push(legacyToolResultMessage(toolResults, lang));
     }
 
     // Max iterations reached — ask LLM for final reply
-    const finalResponse = await fetch(config.apiBase, {
-      method: 'POST', headers,
-      body: JSON.stringify({ ...bodyBase, messages: conversation, stream: false }),
-    });
-    if (finalResponse.ok) {
-      const fd = await finalResponse.json();
-      const finalText = stripToolCalls(fd.choices?.[0]?.message?.content || '');
+    const finalConversation = [
+      ...conversation,
+      {
+        role: 'user',
+        content: lang === 'zh'
+          ? '[SYSTEM] 工具调用轮次已达到上限。请不要再调用工具，直接用自然语言总结当前结果。'
+          : '[SYSTEM] Tool-call iteration limit reached. Do not call more tools; summarize the current result in natural language.',
+      },
+    ];
+    try {
+      const fd = await callModel(config, headers, bodyBase, finalConversation, { withTools: false });
+      const finalMessage = normalizeModelMessage(fd.choices?.[0]?.message);
+      const finalText = stripToolCalls(finalMessage.content || '');
       conversation.push({ role: 'assistant', content: finalText });
       res.write('data: ' + JSON.stringify({ type: 'reply_start' }) + '\n\n');
       for (const char of finalText) {
         res.write('data: ' + JSON.stringify({ type: 'delta', content: char }) + '\n\n');
       }
+    } catch (error) {
+      res.write('data: ' + JSON.stringify({ error: error.message }) + '\n\n');
     }
     if (allToolResults.length > 0) {
-      res.write('data: ' + JSON.stringify({ type: 'tool_results', results: allToolResults }) + '\n\n');
+      res.write('data: ' + JSON.stringify({ type: 'tool_summary', count: allToolResults.length }) + '\n\n');
     }
     res.write('data: [DONE]\n\n');
   } catch (err) {

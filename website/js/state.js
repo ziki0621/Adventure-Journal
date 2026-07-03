@@ -38,6 +38,7 @@
         if (fresh !== appToday) {
           appToday = fresh;
           diaryDate = fresh;
+          todaySelectedDate = fresh;
           selectedDate = fresh;
           renderView();
         }
@@ -52,6 +53,7 @@
       let typeFilters = { questbook: 'all', daily: 'all', side: 'all' };
       let notesFilter = 'diary';
       let diaryDate = '';          // initialized in utils.js after todayOffset is defined
+      let todaySelectedDate = '';  // date picked in Today view mini-calendar
       let editingId = null;
       let editingNoteId = null;
       let selectedDate = '';       // initialized in utils.js after todayOffset is defined

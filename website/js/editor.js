@@ -177,11 +177,12 @@
         $('#editDesc').value = '';
         $('#editType').value = defaultTaskType();
         $('#editPriority').value = 'Med';
-        $('#editDate').value = todayOffset(0);
+        $('#editStartDate').value = todayOffset(0);
+        $('#editEndDate').value = '';
         $('#editLine').value = '';
         $('#editRecurrence').value = 'Daily';
-        $('#editStart').value = todayOffset(0);
-        $('#editEnd').value = todayOffset(7);
+        $('#editStartTime').value = '';
+        $('#editEndTime').value = '';
         updateTaskFormFields();
         $('#taskModal').classList.add('open');
       }

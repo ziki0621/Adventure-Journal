@@ -222,8 +222,9 @@
         `;
       }
       function todayFilteredTasks() {
-        const qbFlat = flattenQuestBooks().filter((t) => dayDiff(t.due) === 0);
-        const taskEntries = tasks.filter((task) => dayDiff(task.due) <= 7);
+        const selDiff = (ds) => Math.round((new Date(ds + 'T00:00:00') - new Date(todaySelectedDate + 'T00:00:00')) / 86400000);
+        const qbFlat = flattenQuestBooks().filter((t) => selDiff(t.due) === 0);
+        const taskEntries = tasks.filter((task) => selDiff(task.due) <= 7);
         const visible = [...taskEntries, ...qbFlat];
         if (todayFilter === 'questbook') return visible.filter((t) => t.type === 'questbook');
         if (todayFilter === 'daily') return visible.filter((t) => t.type === 'daily');

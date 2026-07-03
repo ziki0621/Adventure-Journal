@@ -95,7 +95,16 @@
         return false;
       }
 
+      function tickSidebarClock() {
+        const el = $('#sidebarClock');
+        if (!el) return;
+        const now = new Date();
+        el.textContent = now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      }
+
       function init() {
+        tickSidebarClock();
+        setInterval(tickSidebarClock, 1000);
         const qType = $('#quickType'); if (qType) renderSelect(qType, typeOptions, 'questbook');
         const qPri = $('#quickPriority'); if (qPri) renderSelect(qPri, priorityOptions, 'Med');
         renderSelect($('#editType'), typeOptions, 'questbook');
@@ -122,6 +131,26 @@
             diaryDate = todayOffset(dayDiff(diaryDate) + delta);
             notesFilter = 'diary';
             renderNotes();
+            return;
+          }
+          // Mini-calendar: month navigation
+          const mcMonth = event.target.closest('[data-mc-month]');
+          if (mcMonth) {
+            const delta = Number(mcMonth.dataset.mcMonth);
+            const parts = todaySelectedDate.split('-').map(Number);
+            const d = new Date(parts[0], parts[1] - 1 + delta, 1);
+            const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+            const day = Math.min(parts[2], lastDay);
+            todaySelectedDate = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+            renderToday();
+            return;
+          }
+          // Mini-calendar: date selection
+          const mcDate = event.target.closest('[data-mc-date]');
+          if (mcDate && mcDate.dataset.mcDate) {
+            todaySelectedDate = mcDate.dataset.mcDate;
+            if (activeView === 'today') renderToday();
+            else switchView('today');
             return;
           }
           const todayTab = event.target.closest('[data-today-filter]');

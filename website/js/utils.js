@@ -45,6 +45,7 @@
 
       // Initialize date-dependent globals now that todayOffset is available
       diaryDate = todayOffset(0);
+      todaySelectedDate = todayOffset(0);
       selectedDate = todayOffset(0);
       function escapeHtml(value) {
         return String(value)

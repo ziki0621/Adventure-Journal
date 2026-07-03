@@ -22,7 +22,7 @@ const TOOLS = [
   // ═══════════════════════════════════════════
   {
     name: 'createTask',
-    description: 'Create a new task. Type "daily" is for recurring habits, "side" is for one-off tasks. Returns the created task with its ID.',
+    description: 'Prepare a draft task for the user to review. The task will NOT be created until the user confirms. Returns a draft that will be shown in the editor.',
     parameters: {
       type: 'object',
       properties: {
@@ -38,23 +38,21 @@ const TOOLS = [
       required: ['title'],
     },
     handler: (p) => {
-      const task = db.createTask({
-        id: Date.now(),
-        title: p.title.toUpperCase(),
+      // Return draft ONLY — no DB insert. The user must confirm in the editor.
+      const draft = {
         type: p.type || 'daily',
+        title: p.title.toUpperCase(),
         desc: p.desc || '',
         due: p.due || today(),
         priority: p.priority || 'Med',
-        line: p.type === 'side' ? 'Side' : (p.recurrence || 'Daily'),
         recurrence: p.type === 'side' ? undefined : (p.recurrence || 'Daily'),
-        start: p.type === 'side' ? undefined : (p.due || today()),
-        end: p.type === 'side' ? undefined : '',
+        line: p.type === 'side' ? 'Side' : (p.recurrence || 'Daily'),
+        start: p.due || today(),
+        end: '',
         start_time: p.start_time || '',
         end_time: p.end_time || '',
-        completed: false,
-        streak: 0,
-      });
-      return { ok: true, task: { id: task.id, title: task.title, type: task.type, due: task.due, priority: task.priority, desc: task.desc || '', recurrence: task.recurrence, line: task.line, start: task.start, end: task.end, start_time: task.start_time || '', end_time: task.end_time || '' } };
+      };
+      return { ok: true, draft };
     },
   },
 
@@ -269,6 +267,49 @@ const TOOLS = [
   },
 ];
 
+const TOOL_MAP = new Map(TOOLS.map((tool) => [tool.name, tool]));
+
+function validateAndCoerceParams(schema, input) {
+  const params = input && typeof input === 'object' && !Array.isArray(input) ? input : {};
+  const properties = schema.properties || {};
+  const required = schema.required || [];
+  const output = {};
+  const errors = [];
+
+  required.forEach((key) => {
+    if (params[key] === undefined || params[key] === null || params[key] === '') {
+      errors.push(`Missing required parameter: ${key}`);
+    }
+  });
+
+  Object.entries(properties).forEach(([key, spec]) => {
+    if (params[key] === undefined || params[key] === null) return;
+    let value = params[key];
+    if (spec.type === 'number' && typeof value === 'string' && value.trim() !== '') {
+      const parsed = Number(value);
+      if (!Number.isNaN(parsed)) value = parsed;
+    }
+    if (spec.type === 'string' && typeof value !== 'string') {
+      value = String(value);
+    }
+    if (spec.type === 'number' && typeof value !== 'number') {
+      errors.push(`Parameter ${key} must be a number`);
+      return;
+    }
+    if (spec.type === 'string' && typeof value !== 'string') {
+      errors.push(`Parameter ${key} must be a string`);
+      return;
+    }
+    if (spec.enum && !spec.enum.includes(value)) {
+      errors.push(`Parameter ${key} must be one of: ${spec.enum.join(', ')}`);
+      return;
+    }
+    output[key] = value;
+  });
+
+  return { ok: errors.length === 0, params: output, errors };
+}
+
 // ── Generate the "available tools" section of the system prompt ──
 function toolsToPromptText() {
   return TOOLS.map((t) => {
@@ -278,6 +319,48 @@ function toolsToPromptText() {
     }).join('\n');
     return `### ${t.name}\n${t.description}\nParameters:\n${paramLines || '  (none)'}`;
   }).join('\n\n');
+}
+
+function openAiTools() {
+  return TOOLS.map((tool) => ({
+    type: 'function',
+    function: {
+      name: tool.name,
+      description: tool.description,
+      parameters: tool.parameters,
+    },
+  }));
+}
+
+function parseJsonObjectAt(text, startIndex) {
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+  for (let i = startIndex; i < text.length; i++) {
+    const char = text[i];
+    if (inString) {
+      if (escape) {
+        escape = false;
+      } else if (char === '\\') {
+        escape = true;
+      } else if (char === '"') {
+        inString = false;
+      }
+      continue;
+    }
+    if (char === '"') {
+      inString = true;
+    } else if (char === '{') {
+      depth++;
+    } else if (char === '}') {
+      depth--;
+      if (depth === 0) {
+        const raw = text.slice(startIndex, i + 1);
+        return { value: JSON.parse(raw), endIndex: i + 1, raw };
+      }
+    }
+  }
+  return null;
 }
 
 // ── Build system prompt ──
@@ -294,9 +377,8 @@ function buildSystemPrompt(currentLanguage) {
       ? '1. 和用户自然对话，用「」包裹你的对话。问候简短。'
       : '1. Speak naturally. Keep greetings brief.',
     zh
-      ? '2. 当你需要执行操作时，在回复末尾输出工具调用。每个工具调用单独一行 JSON：'
-      : '2. When you need to act, output tool calls at the end of your reply. One JSON per line:',
-    '   {"tool":"toolName","params":{...}}',
+      ? '2. 当你需要执行操作时，优先使用系统提供的工具调用，不要把工具 JSON 写在正文里。'
+      : '2. When you need to act, use the provided tool calls. Do not write tool JSON in the visible reply.',
     zh
       ? '3. 可以先问问题收集信息，确认后再调用工具。也可以直接调用工具（用户说"把XX删了"就直接删）。'
       : '3. You may ask clarifying questions first, or call tools directly when the user is explicit.',
@@ -307,15 +389,18 @@ function buildSystemPrompt(currentLanguage) {
       ? '5. 永远不要编造任务的 ID。用 listTasks 查询真实 ID。'
       : '5. Never invent task IDs. Use listTasks to look up real IDs.',
     zh
-      ? `6. 今天的日期是 ${todayStr}。计算截止日期时以此为基准。`
-      : `6. Today is ${todayStr}. Use this as the reference for due dates.`,
+      ? `6. 今天的日期是 ${todayStr}，当前时间是 ${new Date().toLocaleTimeString('zh-CN', {timeZone:'Asia/Shanghai',hour:'2-digit',minute:'2-digit'})}（北京时间）。计算截止日期和提醒时以此为基准。`
+      : `6. Today is ${todayStr}, current time is ${new Date().toLocaleTimeString('en-US', {timeZone:'Asia/Shanghai',hour:'2-digit',minute:'2-digit',hour12:false})} (Beijing time). Use this as the reference for due dates and reminders.`,
+    zh
+      ? '7. 用 createTask 只会生成草稿，系统会弹出编辑框让用户确认后才真正创建。告诉用户这一点。'
+      : '7. createTask only produces a draft — the system will show an editor for the user to confirm before the task is actually created. Tell the user this.',
     '',
     zh ? '=== 可用工具 ===' : '=== Available Tools ===',
     toolsToPromptText(),
     '',
     zh
-      ? '每次回复末尾可以输出零个或多个工具调用。需要多个操作时输出多行 JSON。'
-      : 'You may output zero or more tool calls at the end of each reply. Use multiple JSON lines for multiple actions.',
+      ? '如果当前模型不支持标准工具调用，才可以在回复末尾输出 fallback JSON：{"tool":"toolName","params":{...}}。'
+      : 'Only if the current model does not support standard tool calls, output fallback JSON at the end: {"tool":"toolName","params":{...}}.',
   ];
   return lines.join('\n');
 }
@@ -323,18 +408,19 @@ function buildSystemPrompt(currentLanguage) {
 // ── Parse tool calls from LLM response ──
 function parseToolCalls(text) {
   const calls = [];
-  const re = /\{\s*"tool"\s*:\s*"(\w+)"\s*,\s*"params"\s*:\s*(\{[^}]+\})\s*\}/g;
-  let m;
-  while ((m = re.exec(text)) !== null) {
+  let index = 0;
+  while (index < text.length) {
+    const start = text.indexOf('{', index);
+    if (start === -1) break;
     try {
-      calls.push({ tool: m[1], params: JSON.parse(m[2]) });
-    } catch (e) { /* skip malformed */ }
-  }
-  // Also try: {"tool": "x", "params": {...}} (with spaces)
-  if (calls.length === 0) {
-    const re2 = /\{\s*"tool"\s*:\s*"(\w+)"\s*,\s*"params"\s*:\s*(\{[^}]+\})\s*\}/g;
-    while ((m = re2.exec(text)) !== null) {
-      try { calls.push({ tool: m[1], params: JSON.parse(m[2]) }); } catch (e) {}
+      const parsed = parseJsonObjectAt(text, start);
+      if (!parsed) break;
+      if (parsed.value && typeof parsed.value.tool === 'string' && parsed.value.params && typeof parsed.value.params === 'object') {
+        calls.push({ tool: parsed.value.tool, params: parsed.value.params, raw: parsed.raw });
+      }
+      index = parsed.endIndex;
+    } catch (e) {
+      index = start + 1;
     }
   }
   return calls;
@@ -342,10 +428,12 @@ function parseToolCalls(text) {
 
 // ── Execute a tool call ──
 async function executeTool(name, params) {
-  const tool = TOOLS.find((t) => t.name === name);
+  const tool = TOOL_MAP.get(name);
   if (!tool) return { ok: false, error: `Unknown tool: ${name}` };
+  const validation = validateAndCoerceParams(tool.parameters || {}, params || {});
+  if (!validation.ok) return { ok: false, error: 'Invalid tool parameters', details: validation.errors };
   try {
-    const result = await tool.handler(params);
+    const result = await tool.handler(validation.params);
     return result;
   } catch (e) {
     return { ok: false, error: e.message };
@@ -354,8 +442,12 @@ async function executeTool(name, params) {
 
 // ── Strip tool call JSON from displayed text ──
 function stripToolCalls(text) {
-  return text.replace(/\{\s*"tool"\s*:\s*"\w+"\s*,\s*"params"\s*:\s*\{[^}]+\}\s*\}/g, '')
-    .replace(/\n{3,}/g, '\n\n').trim();
+  let output = text;
+  const calls = parseToolCalls(text);
+  calls.forEach((call) => {
+    if (call.raw) output = output.replace(call.raw, '');
+  });
+  return output.replace(/\n{3,}/g, '\n\n').trim();
 }
 
-module.exports = { TOOLS, buildSystemPrompt, parseToolCalls, executeTool, stripToolCalls };
+module.exports = { TOOLS, buildSystemPrompt, openAiTools, parseToolCalls, executeTool, stripToolCalls };

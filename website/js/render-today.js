@@ -6,27 +6,82 @@
    ================================================================ */
 
       function renderTodayDashboard(entries) {
+        // Build task-dot map: which dates have tasks
+        const allTasks = [...tasks, ...flattenQuestBooks()];
+        const dotMap = {}; // { 'YYYY-MM-DD': count }
+        allTasks.forEach((t) => {
+          if (!t.due) return;
+          dotMap[t.due] = (dotMap[t.due] || 0) + 1;
+        });
+
+        // Mini calendar
+        const selected = new Date(todaySelectedDate + 'T00:00:00');
+        const today = new Date(appToday + 'T00:00:00');
+        const year = selected.getFullYear();
+        const month = selected.getMonth();
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        const firstDay = new Date(year, month, 1).getDay();
+        const daysInPrev = new Date(year, month, 0).getDate();
+
+        const weekDays = currentLanguage === 'zh'
+          ? ['日','一','二','三','四','五','六']
+          : ['Su','Mo','Tu','We','Th','Fr','Sa'];
+
+        const days = [];
+        for (let i = 0; i < firstDay; i++) {
+          days.push({ day: daysInPrev - firstDay + i + 1, current: false, date: null });
+        }
+        for (let d = 1; d <= daysInMonth; d++) {
+          const iso = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+          days.push({ day: d, current: true, date: iso, dots: dotMap[iso] || 0 });
+        }
+        const rem = (7 - (days.length % 7)) % 7;
+        for (let i = 1; i <= rem; i++) {
+          days.push({ day: i, current: false, date: null });
+        }
+
+        const monthName = new Date(year, month, 1).toLocaleDateString(
+          currentLanguage === 'zh' ? 'zh-CN' : 'en-US', { year:'numeric', month:'long' }
+        );
+
         const total = entries.length;
-        const done = entries.filter((task) => task.completed).length;
+        const done = entries.filter((t) => t.completed).length;
         const active = total - done;
         const percent = total ? Math.round((done / total) * 100) : 0;
+
         const pad = (value) => String(value).padStart(2, '0');
         return `
           <div class="today-side-stack">
-            <div>
-              <div class="section-title compact serif"><span class="diamond"></span><span class="text">${todayStatusText('statusTitle')}</span><span class="diamond"></span></div>
-              <div class="wire system-dashboard">
-                <div class="wire-inner">
-                  <div class="dashboard-row"><span class="dashboard-label">${todayStatusText('total')}</span><span class="dashboard-value">${pad(total)}</span></div>
-                  <div class="dashboard-row"><span class="dashboard-label">${todayStatusText('active')}</span><span class="dashboard-value">${pad(active)}</span></div>
-                  <div class="dashboard-row"><span class="dashboard-label">${todayStatusText('done')}</span><span class="dashboard-value">${pad(done)}</span></div>
-                  <div class="dashboard-progress" aria-label="${percent}% ${todayStatusText('completion')}"><div class="dashboard-progress-fill" style="width:${percent}%"></div></div>
-                  <div class="dashboard-percent">${percent}% ${todayStatusText('completion')}</div>
+            <div class="mini-calendar wire">
+              <div class="wire-inner" style="padding:10px;">
+                <div class="mc-head">
+                  <button class="mc-nav" type="button" data-mc-month="-1" aria-label="Prev">◀</button>
+                  <span class="mc-month serif">${monthName}</span>
+                  <button class="mc-nav" type="button" data-mc-month="1" aria-label="Next">▶</button>
+                </div>
+                <div class="mc-weekdays">${weekDays.map((w,i) => `<span class="mc-wd${i===0||i===6?' mc-wkend':''}">${w}</span>`).join('')}</div>
+                <div class="mc-grid">
+                  ${days.map((d) => {
+                    return `<button class="mc-day${!d.current?' mc-muted':''}${d.date===appToday?' mc-today':''}${d.date===todaySelectedDate?' mc-selected':''}" type="button" data-mc-date="${d.date||''}" ${!d.date?'disabled':''}>
+                      <span class="mc-day-num serif">${d.day}</span>
+                      ${d.dots ? `<span class="mc-dot">${d.dots > 1 ? d.dots : '·'}</span>` : ''}
+                    </button>`;
+                  }).join('')}
                 </div>
               </div>
             </div>
+            <div class="wire system-dashboard">
+              <div class="wire-inner">
+                <div class="section-title compact serif"><span class="diamond"></span><span class="text">${todayStatusText('statusTitle')}</span><span class="diamond"></span></div>
+                <div class="dashboard-row"><span class="dashboard-label">${todayStatusText('total')}</span><span class="dashboard-value">${pad(total)}</span></div>
+                <div class="dashboard-row"><span class="dashboard-label">${todayStatusText('active')}</span><span class="dashboard-value">${pad(active)}</span></div>
+                <div class="dashboard-row"><span class="dashboard-label">${todayStatusText('done')}</span><span class="dashboard-value">${pad(done)}</span></div>
+                <div class="dashboard-progress" aria-label="${percent}% ${todayStatusText('completion')}"><div class="dashboard-progress-fill" style="width:${percent}%"></div></div>
+                <div class="dashboard-percent">${percent}% ${todayStatusText('completion')}</div>
+              </div>
+            </div>
             <button class="agent-slot" type="button" id="openAnya" aria-label="${todayStatusText('agentName')}">
-              <img class="agent-portrait" src="assets/guide-anya.png" alt="${todayStatusText('agentName')}" />
+              <img class="agent-portrait" src="assets/anya-normal.png" alt="${todayStatusText('agentName')}" />
             </button>
             ${renderStickyNote()}
           </div>
@@ -99,9 +154,11 @@
 
       function renderToday() {
         setHeader(tr('view.today.title'), tr('view.today.eyebrow'), '');
-        const qbFlat = flattenQuestBooks().filter((t) => dayDiff(t.due) === 0);
-        const allQBFlat = flattenQuestBooks().filter((t) => dayDiff(t.due) <= 7);
-        const allEntries = [...tasks.filter((t) => dayDiff(t.due) <= 7), ...allQBFlat];
+        const selDate = todaySelectedDate;
+        const selDiff = (ds) => Math.round((new Date(ds + 'T00:00:00') - new Date(selDate + 'T00:00:00')) / 86400000);
+        const qbFlat = flattenQuestBooks().filter((t) => selDiff(t.due) === 0);
+        const allQBFlat = flattenQuestBooks().filter((t) => selDiff(t.due) <= 7);
+        const allEntries = [...tasks.filter((t) => selDiff(t.due) <= 7), ...allQBFlat];
         const counts = {
           all: allEntries.length,
           questbook: allQBFlat.length,
@@ -109,9 +166,10 @@
           side: allEntries.filter((t) => t.type === 'side').length,
         };
         const scoped = sortByDue(todayFilteredTasks());
-        const overdue = scoped.filter((task) => dayDiff(task.due) < 0);
-        const today = scoped.filter((task) => dayDiff(task.due) === 0);
-        const upcoming = scoped.filter((task) => dayDiff(task.due) > 0 && dayDiff(task.due) <= 7);
+        const overdue = scoped.filter((task) => selDiff(task.due) < 0);
+        const today = scoped.filter((task) => selDiff(task.due) === 0);
+        const upcoming = scoped.filter((task) => selDiff(task.due) > 0 && selDiff(task.due) <= 7);
+        const isToday = selDate === appToday;
         $('#viewContent').innerHTML = `
           <div class="today-dashboard-layout">
             ${renderTodayDashboard(allEntries)}
@@ -120,16 +178,17 @@
               <div class="today-folder-panel">
                 <div class="today-folder-inner">
                   <section class="list-section">
-                    <div class="section-head"><h3 class="serif">${tr('section.overdue')}</h3><span>${overdue.length} ${tr('unit.contracts')}</span></div>
-                    ${renderTaskList(overdue, tr('empty.overdue'))}
+                    <div class="section-head"><h3 class="serif">${isToday ? tr('section.overdue') : tr('section.dueToday')}</h3><span>${overdue.length} ${tr('unit.contracts')}</span></div>
+                    ${renderTaskList(overdue, isToday ? tr('empty.overdue') : tr('empty.today'))}
                   </section>
+                  ${isToday ? `
                   <section class="list-section">
                     <div class="section-head"><h3 class="serif">${tr('section.dueToday')}</h3><span>${today.length} ${tr('unit.contracts')}</span></div>
                     ${renderTaskList(today, tr('empty.today'))}
-                  </section>
+                  </section>` : ''}
                   <section class="list-section">
-                    <div class="section-head"><h3 class="serif">${tr('section.upcoming')}</h3><span>${tr('range.next7')}</span></div>
-                    ${renderTaskList(upcoming, tr('empty.upcoming'))}
+                    <div class="section-head"><h3 class="serif">${isToday ? tr('section.upcoming') : tr('section.selectedDay')}</h3><span>${isToday ? tr('range.next7') : formatDate(selDate)}</span></div>
+                    ${renderTaskList(isToday ? upcoming : [...overdue, ...today, ...upcoming], tr('empty.today'))}
                   </section>
                 </div>
               </div>
