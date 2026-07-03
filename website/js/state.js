@@ -24,7 +24,16 @@
       const languageKey = 'adventure-ledger-language';
       const agentConfigKey = 'adventure-agent-config-v1';
       const appTimeZone = 'Asia/Shanghai';
-      const appToday = new Date().toISOString().slice(0, 10);
+      let appToday = new Date().toISOString().slice(0, 10);
+      setInterval(() => {
+        const fresh = new Date().toISOString().slice(0, 10);
+        if (fresh !== appToday) {
+          appToday = fresh;
+          diaryDate = fresh;
+          selectedDate = fresh;
+          renderView();
+        }
+      }, 60000);
       let tasks = [];
       let questBooks = [];
       let notes = [];
@@ -40,7 +49,6 @@
       let selectedDate = '';       // initialized in utils.js after todayOffset is defined
       let viewTransitionTimer = null;
       let currentLanguage = localStorage.getItem(languageKey) || 'zh';
-      const agentMessagesKey = 'adventure-agent-messages-v1';
       let agentMessages = [];
       let agentSaveIndex = 0;      // tracks how many messages have been persisted
       let agentIsStreaming = false;
