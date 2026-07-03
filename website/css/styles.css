@@ -247,10 +247,16 @@
         z-index: 40;
         width: min(280px, 82vw);
         overflow-y: auto;
+        scrollbar-width: none;
         pointer-events: none;
         opacity: 0;
         transform: translateX(-100%);
         transition: opacity 220ms ease, transform 280ms cubic-bezier(0.34, 1.56, 0.64, 1);
+      }
+
+      .sidebar::-webkit-scrollbar {
+        width: 0;
+        height: 0;
       }
 
       .page.sidebar-open .sidebar {
@@ -700,8 +706,8 @@
         top: 0;
         z-index: 4;
         display: flex;
+        flex-wrap: wrap;
         align-items: flex-end;
-        min-width: max-content;
         margin: 0;
         padding-left: 0;
       }
@@ -715,11 +721,7 @@
         z-index: 4;
         margin: 0 0 -1.5px;
         padding-left: 14px;
-        overflow-x: auto;
-      }
-
-      .index-tabs::-webkit-scrollbar {
-        height: 0;
+        overflow: visible;
       }
 
       .index-rail {
@@ -3078,11 +3080,11 @@
 
         .today-tabs {
           padding-left: 0;
-          overflow-x: auto;
+          overflow: visible;
         }
 
         .today-tab {
-          min-width: 116px;
+          min-width: 104px;
         }
 
         .library-layout {
