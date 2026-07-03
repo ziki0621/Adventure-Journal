@@ -105,7 +105,7 @@
         const type = $('#quickType').value;
         if (!title) return;
         if (type === 'questbook') return; // use the Quest Book editor instead
-        tasks.unshift({
+        const newTask = {
           id: Date.now(),
           title: title.toUpperCase(),
           desc: '',
@@ -118,8 +118,9 @@
           streak: type === 'daily' ? 0 : undefined,
           start_time: '',
           end_time: '',
-        });
-        saveTasks();
+        };
+        tasks.unshift(newTask);
+        apiCreateTask(newTask);
         $('#quickTitle').value = '';
         $('#quickDate').value = todayOffset(0);
         renderView();
@@ -135,7 +136,7 @@
         const priorityInput = manager.querySelector('.manager-priority');
         const title = titleInput.value.trim();
         if (!title) return;
-        tasks.unshift({
+        const newTask = {
           id: Date.now(),
           title: title.toUpperCase(),
           desc: '',
@@ -146,8 +147,9 @@
           completed: false,
           recurrence: type === 'daily' ? 'Daily' : undefined,
           streak: type === 'daily' ? 0 : undefined,
-        });
-        saveTasks();
+        };
+        tasks.unshift(newTask);
+        apiCreateTask(newTask);
         renderView();
       }
 
@@ -242,7 +244,7 @@
         $('#questBookModal').classList.remove('open');
       }
 
-      function saveQuestBookEditor() {
+      async function saveQuestBookEditor() {
         const name = $('#qbName').value.trim();
         if (!name) return;
         const start = $('#qbStart').value || todayOffset(0);
@@ -253,22 +255,25 @@
         const existingId = window._editingQBId;
 
         if (existingId) {
+          let updatedBook = null;
           questBooks = questBooks.map((b) => b.id === existingId
-            ? { ...b, name, start, end, questLines: questLines.map((ql, i) => ({ ...ql, id: ql.id || Date.now() + i })), independentQuests: independentQuests.map((iq, i) => ({ ...iq, id: iq.id || Date.now() + 100 + i })) }
+            ? (updatedBook = { ...b, name, start, end, questLines: questLines.map((ql, i) => ({ ...ql, id: ql.id || Date.now() + i })), independentQuests: independentQuests.map((iq, i) => ({ ...iq, id: iq.id || Date.now() + 100 + i })) })
             : b);
+          apiUpdateQuestBook(existingId, updatedBook);
         } else {
           const newId = Date.now();
-          questBooks.push({
+          const newBook = {
             id: newId,
             name,
             start,
             end,
             questLines: questLines.map((ql, i) => ({ ...ql, id: newId + i + 1, subtasks: (ql.subtasks || []).map((s, si) => ({ ...s, id: newId + (i * 100) + si + 10 })) })),
             independentQuests: independentQuests.map((iq, i) => ({ ...iq, id: newId + 1000 + i })),
-          });
+          };
+          questBooks.push(newBook);
+          apiCreateQuestBook(newBook);
         }
 
-        saveQuestBooks();
         closeQuestBookEditor();
         renderView();
       }
@@ -290,7 +295,7 @@
         $('#noteModal').classList.remove('open');
       }
 
-      function saveNoteEditor() {
+      async function saveNoteEditor() {
         const title = $('#noteTitle').value.trim();
         const body = $('#noteBody').value.trim();
         if (!title && !body) return;
@@ -301,10 +306,12 @@
         };
         if (editingNoteId) {
           notes = notes.map((note) => note.id === editingNoteId ? { ...note, ...payload } : note);
+          apiUpdateNote(editingNoteId, payload);
         } else {
-          notes.unshift({ id: Date.now(), ...payload });
+          const newNote = { id: Date.now(), ...payload };
+          notes.unshift(newNote);
+          apiCreateNote(newNote);
         }
-        saveNotes();
         closeNoteEditor();
         renderView();
       }
@@ -315,7 +322,9 @@
         const recurrence = $('#editRecurrence').value || 'Daily';
         if (!title) return;
 
-        const due = type === 'daily' ? ($('#editStart').value || todayOffset(0)) : ($('#editDate').value || todayOffset(0));
+        const startDate = $('#editStartDate').value || todayOffset(0);
+        const endDate = $('#editEndDate').value || startDate;
+        const due = startDate;
         const startTime = $('#editStartTime').value || '';
         const endTime = $('#editEndTime').value || '';
 
@@ -347,19 +356,22 @@
           priority: $('#editPriority').value,
           line: type === 'daily' ? recurrence : type === 'side' ? 'Side' : ($('#editLine').value.trim() || 'Independent'),
           recurrence: type === 'daily' ? recurrence : undefined,
-          start: $('#editStartDate').value || todayOffset(0),
-          end: $('#editEndDate').value || $('#editStartDate').value || todayOffset(0),
+          start: startDate,
+          end: endDate,
         };
 
         if (editingId) {
+          let updatedTask = null;
           tasks = tasks.map((task) => task.id === editingId
-            ? { ...task, ...basePayload, streak: basePayload.type === 'daily' ? task.streak || 0 : undefined }
+            ? (updatedTask = { ...task, ...basePayload, streak: basePayload.type === 'daily' ? task.streak || 0 : undefined })
             : task);
+          apiUpdateTask(editingId, updatedTask);
         } else {
-          tasks.unshift({ id: Date.now(), ...basePayload, completed: false, streak: basePayload.type === 'daily' ? 0 : undefined });
+          const newTask = { id: Date.now(), ...basePayload, completed: false, streak: basePayload.type === 'daily' ? 0 : undefined };
+          tasks.unshift(newTask);
+          apiCreateTask(newTask);
         }
 
-        saveTasks();
         closeEditor();
         // If we came from the dialogue view, confirm in chat and update
         if (pendingAgentDraft) {

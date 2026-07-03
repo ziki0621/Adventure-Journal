@@ -24,9 +24,17 @@
       const languageKey = 'adventure-ledger-language';
       const agentConfigKey = 'adventure-agent-config-v1';
       const appTimeZone = 'Asia/Shanghai';
-      let appToday = new Date().toISOString().slice(0, 10);
+      function currentDateInAppTimeZone() {
+        return new Intl.DateTimeFormat('en-CA', {
+          timeZone: appTimeZone,
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+        }).format(new Date());
+      }
+      let appToday = currentDateInAppTimeZone();
       setInterval(() => {
-        const fresh = new Date().toISOString().slice(0, 10);
+        const fresh = currentDateInAppTimeZone();
         if (fresh !== appToday) {
           appToday = fresh;
           diaryDate = fresh;
@@ -54,5 +62,5 @@
       let agentIsStreaming = false;
       let agentAbortController = null;
       let pendingAgentDraft = null;
-      let agentConfig = { apiBase: '', apiKey: '', model: '' };
+      let agentConfig = { apiBase: '', apiKey: '', model: '', hasApiKey: false };
       let selectedTaskId = null;    // currently selected task for sticky note

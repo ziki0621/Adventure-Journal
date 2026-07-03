@@ -102,7 +102,12 @@ function createQuestBook(data) {
   (data.questLines || []).forEach((l, li) => {
     const lid = l.id || (bid + li + 1);
     run('INSERT INTO quest_lines (id, book_id, title) VALUES (?, ?, ?)', [lid, bid, l.title]);
-    (l.subtasks || []).forEach((s, si) => { run('INSERT INTO subtasks (id, line_id, title, due, completed) VALUES (?, ?, ?, ?, ?)', [s.id || (bid + li * 100 + si + 10), lid, s.title, s.due, s.completed ? 1 : 0]); });
+    (l.subtasks || []).forEach((s, si) => {
+      run(
+        'INSERT INTO subtasks (id, line_id, title, due, completed, start, end, desc, start_time, end_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [s.id || (bid + li * 100 + si + 10), lid, s.title, s.due, s.completed ? 1 : 0, s.start || null, s.end || null, s.desc || '', s.start_time || '', s.end_time || '']
+      );
+    });
   });
   (data.independentQuests || []).forEach((iq, i) => { run('INSERT INTO independent_quests (id, book_id, title, due, priority, completed, desc) VALUES (?, ?, ?, ?, ?, ?, ?)', [iq.id || (bid + 1000 + i), bid, iq.title, iq.due, iq.priority || 'Med', iq.completed ? 1 : 0, iq.desc || '']); });
   saveDb(); return getBookById(bid);
@@ -113,7 +118,12 @@ function updateQuestBook(id, data) {
   (data.questLines || []).forEach((l, li) => {
     const lid = l.id || (id * 100 + li + 1);
     run('INSERT INTO quest_lines (id, book_id, title) VALUES (?, ?, ?)', [lid, id, l.title]);
-    (l.subtasks || []).forEach((s, si) => { run('INSERT INTO subtasks (id, line_id, title, due, completed) VALUES (?, ?, ?, ?, ?)', [s.id || (id * 1000 + li * 100 + si + 10), lid, s.title, s.due, s.completed ? 1 : 0]); });
+    (l.subtasks || []).forEach((s, si) => {
+      run(
+        'INSERT INTO subtasks (id, line_id, title, due, completed, start, end, desc, start_time, end_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [s.id || (id * 1000 + li * 100 + si + 10), lid, s.title, s.due, s.completed ? 1 : 0, s.start || null, s.end || null, s.desc || '', s.start_time || '', s.end_time || '']
+      );
+    });
   });
   (data.independentQuests || []).forEach((iq, i) => { run('INSERT INTO independent_quests (id, book_id, title, due, priority, completed, desc) VALUES (?, ?, ?, ?, ?, ?, ?)', [iq.id || (id + 2000 + i), id, iq.title, iq.due, iq.priority || 'Med', iq.completed ? 1 : 0, iq.desc || '']); });
   saveDb(); return getBookById(id);
@@ -146,7 +156,13 @@ function getAgentMessages() { return syncQueryAll('SELECT * FROM agent_messages 
 function addAgentMessage(role, text) { run('INSERT INTO agent_messages (role, text) VALUES (?,?)', [role, text]); saveDb(); return { id: syncQueryAll('SELECT last_insert_rowid() as id')[0].id, role, text }; }
 function clearAgentMessages() { run('DELETE FROM agent_messages'); saveDb(); }
 function getAgentConfig() { const r = queryOne('SELECT * FROM agent_config WHERE id = 1'); return r ? { apiBase: r.api_base, apiKey: r.api_key, model: r.model } : { apiBase: '', apiKey: '', model: '' }; }
-function setAgentConfig(data) { run('INSERT OR REPLACE INTO agent_config (id, api_base, api_key, model) VALUES (1,?,?,?)', [data.apiBase||'', data.apiKey||'', data.model||'']); saveDb(); return data; }
+function setAgentConfig(data) {
+  const existing = getAgentConfig();
+  const apiKey = Object.prototype.hasOwnProperty.call(data, 'apiKey') ? (data.apiKey || '') : (existing.apiKey || '');
+  run('INSERT OR REPLACE INTO agent_config (id, api_base, api_key, model) VALUES (1,?,?,?)', [data.apiBase||'', apiKey, data.model||'']);
+  saveDb();
+  return getAgentConfig();
+}
 
 // ── Helpers ──
 function rowToTask(row) { return { id: row.id, type: row.type, title: row.title, desc: row.desc, due: row.due, priority: row.priority, line: row.line, completed: !!row.completed, recurrence: row.recurrence, start: row.start, end: row.end, streak: row.streak, start_time: row.start_time || '', end_time: row.end_time || '' }; }

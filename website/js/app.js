@@ -252,7 +252,7 @@
             const dateIso = input.dataset.dayNote;
             dayNotes[dateIso] = input.value;
             if (!dayNotes[dateIso].trim()) delete dayNotes[dateIso];
-            saveDayNotes();
+            setDayNoteAPI(dateIso, input.value);
             return;
           }
           // Auto-save task desc when editing in sticky note
@@ -305,10 +305,12 @@
             const existing = notes.find((n) => n.date === diaryDate);
             if (existing) {
               notes = notes.map((n) => n.id === existing.id ? { ...n, title, body } : n);
+              apiUpdateNote(existing.id, { title, body, date: diaryDate });
             } else {
-              notes.unshift({ id: Date.now(), title, body, date: diaryDate });
+              const newNote = { id: Date.now(), title, body, date: diaryDate };
+              notes.unshift(newNote);
+              apiCreateNote(newNote);
             }
-            saveNotes();
             renderNotes();
             return;
           }
@@ -356,7 +358,8 @@
         $('#saveNote').addEventListener('click', saveNoteEditor);
         $('#openSettings').addEventListener('click', () => {
           $('#agentApiBase').value = agentConfig.apiBase || '';
-          $('#agentApiKey').value = agentConfig.apiKey || '';
+          $('#agentApiKey').value = '';
+          $('#agentApiKey').placeholder = agentConfig.hasApiKey ? 'API Key saved; leave blank to keep it' : 'API Key...';
           $('#agentModel').value = agentConfig.model || '';
           $('#settingsModal').classList.add('open');
         });

@@ -99,15 +99,19 @@
           const res = await fetch(API + '/agent/config');
           if (!res.ok) throw new Error('HTTP ' + res.status);
           return await res.json();
-        } catch (e) { return { apiBase: '', apiKey: '', model: '' }; }
+        } catch (e) { return { apiBase: '', apiKey: '', model: '', hasApiKey: false }; }
       }
       async function saveAgentConfig() {
+        const apiKey = $('#agentApiKey')?.value.trim() || '';
         agentConfig = {
           apiBase: $('#agentApiBase')?.value.trim() || '',
-          apiKey: $('#agentApiKey')?.value.trim() || '',
           model: $('#agentModel')?.value.trim() || '',
+          hasApiKey: agentConfig.hasApiKey || !!apiKey,
         };
-        await fetch(API + '/agent/config', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(agentConfig) });
+        const payload = { apiBase: agentConfig.apiBase, model: agentConfig.model };
+        if (apiKey) payload.apiKey = apiKey;
+        const res = await fetch(API + '/agent/config', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        if (res.ok) agentConfig = await res.json();
       }
       async function loadAgentMessages() {
         try {
@@ -124,14 +128,33 @@
       }
 
       // ── Fire-and-forget persistence wrappers ──
+      const saveQueues = {
+        tasks: Promise.resolve(),
+        notes: Promise.resolve(),
+        questBooks: Promise.resolve(),
+      };
+      const pendingSnapshots = {
+        tasks: null,
+        notes: null,
+        questBooks: null,
+      };
+      function queueCollectionSave(name, url, data) {
+        pendingSnapshots[name] = JSON.stringify(data);
+        saveQueues[name] = saveQueues[name].then(async () => {
+          const body = pendingSnapshots[name];
+          pendingSnapshots[name] = null;
+          if (!body) return;
+          await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
+        }).catch((error) => console.warn(name + ' save failed:', error.message));
+      }
       function saveTasks() {
-        fetch(API + '/tasks', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(tasks) }).catch(() => {});
+        queueCollectionSave('tasks', API + '/tasks', tasks);
       }
       function saveNotes() {
-        fetch(API + '/notes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(notes) }).catch(() => {});
+        queueCollectionSave('notes', API + '/notes', notes);
       }
       function saveQuestBooks() {
-        fetch(API + '/quest-books', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(questBooks) }).catch(() => {});
+        queueCollectionSave('questBooks', API + '/quest-books', questBooks);
       }
       function saveDayNotes() {
         Object.entries(dayNotes).forEach(([date, content]) => {

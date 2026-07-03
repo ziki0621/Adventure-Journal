@@ -1,5 +1,4 @@
 const express = require('express');
-const cors = require('cors');
 const path = require('path');
 
 const tasksRouter = require('./routes/tasks');
@@ -11,7 +10,24 @@ const agentRouter = require('./routes/agent');
 const app = express();
 const PORT = Number(process.env.PORT || 4173);
 
-app.use(cors());
+app.use((req, res, next) => {
+  const origin = req.get('Origin');
+  if (!origin) return next();
+  try {
+    const { hostname } = new URL(origin);
+    if (hostname === '127.0.0.1' || hostname === 'localhost') {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Vary', 'Origin');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+      res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+      if (req.method === 'OPTIONS') return res.sendStatus(204);
+      return next();
+    }
+  } catch (e) {
+    // Fall through to deny malformed origins.
+  }
+  return res.status(403).json({ error: 'Forbidden origin' });
+});
 app.use(express.json({ limit: '1mb' }));
 
 // API routes

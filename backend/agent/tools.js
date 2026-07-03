@@ -7,7 +7,12 @@
 const db = require('../db');
 
 // ── Helpers ──
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Asia/Shanghai',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+}).format(new Date());
 const offset = (d) => { const dt = new Date(today()); dt.setDate(dt.getDate() + d); return dt.toISOString().slice(0, 10); };
 const dayDiff = (ds) => Math.round((new Date(ds + 'T00:00:00') - new Date(today() + 'T00:00:00')) / 86400000);
 

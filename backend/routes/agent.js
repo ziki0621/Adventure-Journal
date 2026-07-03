@@ -3,6 +3,14 @@ const db = require('../db');
 const { buildSystemPrompt, parseToolCalls, executeTool, stripToolCalls } = require('../agent/tools');
 const router = Router();
 
+function publicAgentConfig(config) {
+  return {
+    apiBase: config.apiBase || '',
+    model: config.model || '',
+    hasApiKey: !!config.apiKey,
+  };
+}
+
 // GET messages
 router.get('/messages', (req, res) => {
   try { res.json(db.getAgentMessages()); } catch (e) { res.status(500).json({ error: e.message }); }
@@ -20,10 +28,10 @@ router.delete('/messages', (req, res) => {
 
 // GET/PUT config
 router.get('/config', (req, res) => {
-  try { res.json(db.getAgentConfig()); } catch (e) { res.status(500).json({ error: e.message }); }
+  try { res.json(publicAgentConfig(db.getAgentConfig())); } catch (e) { res.status(500).json({ error: e.message }); }
 });
 router.put('/config', (req, res) => {
-  try { res.json(db.setAgentConfig(req.body)); } catch (e) { res.status(500).json({ error: e.message }); }
+  try { res.json(publicAgentConfig(db.setAgentConfig(req.body))); } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // ── POST /chat — Agent execution loop with tool calling ──
