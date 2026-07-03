@@ -1,0 +1,32 @@
+{
+  "name": "adventure-journal",
+  "version": "1.0.0",
+  "description": "Adventure Ledger - Quest Book & Task Manager",
+  "scripts": {
+    "dev": "node backend/server.js",
+    "dev:static": "node website/server.mjs",
+    "build:exe": "npm install electron@33.0.0 electron-builder@25.0.0 --no-save && npx electron-builder --win"
+  },
+  "build": {
+    "appId": "com.adventure.ledger",
+    "productName": "Adventure Ledger",
+    "directories": {
+      "output": "dist-electron"
+    },
+    "files": [
+      "backend/**/*",
+      "website/**/*",
+      "electron/**/*",
+      "node_modules/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": "nsis"
+    }
+  },
+  "dependencies": {
+    "cors": "^2.8.6",
+    "express": "^4.22.2",
+    "sql.js": "^1.14.1"
+  }
+}

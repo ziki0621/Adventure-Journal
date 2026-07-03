@@ -1,0 +1,17 @@
+node_modules/
+node_modules_electron/
+data/
+dist-electron/
+*.lnk
+*.vbs
+*.docx
+.DS_Store
+Thumbs.db
+website/index_backup_*.html
+seed*.js
+patch*.js
+split*.js
+fix_quotes.py
+generate_ico.js
+resize_icon.js
+index.html
