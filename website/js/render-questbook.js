@@ -113,7 +113,7 @@
         const done = item.completed;
         const isSpan = position.span > 1;
         return `
-          <div class="qb-node ${done ? 'done' : ''} ${isSpan ? 'span' : ''}" style="left:${position.left}px;width:${position.width}px;" title="${escapeHtml(item.title)}">
+          <div class="qb-node ${done ? 'done' : ''} ${isSpan ? 'span' : ''}" style="left:${position.left}px;width:${position.width}px;" title="${escapeHtml(item.title)}" data-qb-item-book="${item.bookId || ''}" data-qb-item-type="${item._source || (_type)}" data-qb-item-line-id="${item.lineId || ''}" data-qb-item-id="${item.id}">
             ${actionHtml}
             <div class="qb-node-inner">
               <span class="qb-node-code">${escapeHtml(code)}</span>
@@ -172,7 +172,7 @@
                 <span class="check-box"><svg class="check-mark" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 13l4 4L19 7" /></svg></span>
               </button>
             `;
-            return qbTimelineItem(normalizeQbTimelineItem(sub), `S-${String(subIndex + 1).padStart(2, '0')}`, range, layout, action);
+            sub.bookId = book.id; sub.lineId = line.id; sub._source = 'subtask'; return qbTimelineItem(normalizeQbTimelineItem(sub), `S-${String(subIndex + 1).padStart(2, '0')}`, range, layout, action);
           }).join('');
           const subCount = sorted.length;
           return `
@@ -202,7 +202,7 @@
                     <span class="check-box"><svg class="check-mark" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 13l4 4L19 7" /></svg></span>
                   </button>
                 `;
-                return qbTimelineItem(normalizeQbTimelineItem(iq), `I-${String(index + 1).padStart(2, '0')}`, range, layout, action);
+                iq.bookId = book.id; iq._source = 'independent'; return qbTimelineItem(normalizeQbTimelineItem(iq), `I-${String(index + 1).padStart(2, '0')}`, range, layout, action);
               }).join('')}
             </div>
           </div>
@@ -269,12 +269,12 @@
           $('#viewContent').innerHTML = `<div class="wire"><div class="wire-inner qb-empty">${tr('questbook.empty')}</div></div>`;
           return;
         }
-        let totalQuests = 0, totalActive = 0, totalHigh = 0;
+        let totalQuests = 0, totalActive = 0;
         questBooks.forEach((book) => {
           book.questLines.forEach((line) => {
             line.subtasks.forEach((sub) => { totalQuests++; if (!sub.completed) totalActive++; });
           });
-          book.independentQuests.forEach((iq) => { totalQuests++; if (!iq.completed) totalActive++; if (iq.priority === 'High') totalHigh++; });
+          book.independentQuests.forEach((iq) => { totalQuests++; if (!iq.completed) totalActive++; });
         });
         $('#viewContent').innerHTML = `
           <div class="library-layout">
@@ -283,7 +283,6 @@
                 <div class="small-stat"><strong>${questBooks.length}</strong><span>${tr('questbook.totalBooks')}</span></div>
                 <div class="small-stat"><strong>${totalQuests}</strong><span>${tr('questbook.totalQuests')}</span></div>
                 <div class="small-stat"><strong>${totalActive}</strong><span>${tr('stats.active')}</span></div>
-                <div class="small-stat"><strong>${totalHigh}</strong><span>${tr('stats.high')}</span></div>
               </div>
               ${questBooks.map((book) => qbCard(book)).join('')}
             </div>

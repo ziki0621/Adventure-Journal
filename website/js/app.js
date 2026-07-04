@@ -10,10 +10,6 @@
         const control = event.target.closest('[data-action]');
         if (!control) return;
         const action = control.dataset.action;
-        if (action === 'add-type') {
-          addTaskFromManager(control);
-          return;
-        }
         const id = Number(control.dataset.id);
         if (action === 'toggle') {
           // Optimistic update: mutate local array, then fire per-item API
@@ -106,9 +102,6 @@
         tickSidebarClock();
         setInterval(tickSidebarClock, 1000);
         const qType = $('#quickType'); if (qType) renderSelect(qType, typeOptions, 'questbook');
-        const qPri = $('#quickPriority'); if (qPri) renderSelect(qPri, priorityOptions, 'Med');
-        renderSelect($('#editType'), typeOptions, 'questbook');
-        renderSelect($('#editPriority'), priorityOptions, 'Med');
         const qDate = $('#quickDate'); if (qDate) qDate.value = todayOffset(0);
 
         document.addEventListener('click', (event) => {
@@ -128,6 +121,7 @@
           const diaryDateNav = event.target.closest('[data-diary-date]');
           if (diaryDateNav) {
             const delta = Number(diaryDateNav.dataset.diaryDate);
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(diaryDate)) diaryDate = todayOffset(0);
             diaryDate = todayOffset(dayDiff(diaryDate) + delta);
             notesFilter = 'diary';
             renderNotes();
@@ -203,35 +197,67 @@
             openDialogue();
             return;
           }
+          // Knowledge Base "new note" button (dynamically rendered in renderNotes)
+          if (event.target.closest('#openNoteEditor')) {
+            openNoteEditor(null);
+            return;
+          }
           // Quest book editor: toggle line accordion
           const qbToggleLine = event.target.closest('[data-qb-toggle-line]');
           if (qbToggleLine && !event.target.closest('input') && !event.target.closest('button')) {
             qbToggleLine.closest('.qb-ql-accordion')?.classList.toggle('open');
             return;
           }
-          // Quest book editor: toggle multi-day fields
-          const qbToggleSpan = event.target.closest('.qb-sub-toggle-more');
-          if (qbToggleSpan) {
-            const row = qbToggleSpan.closest('.qb-subtask-row');
-            const spanDiv = row?.querySelector('.qb-sub-span');
-            if (spanDiv) {
-              spanDiv.classList.toggle('hidden');
-              qbToggleSpan.textContent = spanDiv.classList.contains('hidden') ? '+' : '−';
-            }
-            return;
-          }
           // Quest book editor: remove subtask
           const qbRemoveSubtask = event.target.closest('[data-qb-remove-subtask]');
-          if (qbRemoveSubtask) { qbRemoveSubtask.closest('.qb-subtask-row')?.remove(); return; }
+          if (qbRemoveSubtask) { qbRemoveSubtask.closest('.qb-subtask-card')?.remove(); return; }
+
+          // Quest book editor: edit sub-task card
+          const qbEditSub = event.target.closest('[data-qb-edit-subtask]');
+          if (qbEditSub && !event.target.closest('button')) {
+            const card = qbEditSub.closest('.qb-subtask-card');
+            const accordion = qbEditSub.closest('.qb-ql-accordion');
+            const bookId = window._editingQBId;
+            const subId = Number(card.dataset.subId) || 0;
+            const lineId = Number(accordion?.dataset.qbLineId) || 0;
+            if (bookId && subId && lineId) openQBItemEditor(bookId, 'subtask', lineId, subId);
+            else openQBItemEditorFromDom('subtask', card);
+            return;
+          }
+
+          // Quest book editor: edit independent card
+          const qbEditIndep = event.target.closest('[data-qb-edit-independent]');
+          if (qbEditIndep && !event.target.closest('button')) {
+            const card = qbEditIndep.closest('.qb-independent-row');
+            const bookId = window._editingQBId;
+            const iqId = Number(card.dataset.iqId) || 0;
+            if (bookId && iqId) openQBItemEditor(bookId, 'independent', null, iqId);
+            else openQBItemEditorFromDom('independent', card);
+            return;
+          }
           // Quest book editor: add subtask
           const qbAddSub = event.target.closest('[data-qb-add-subtask]');
           if (qbAddSub) {
-            const li = qbAddSub.dataset.qbAddSubtask;
-            const container = document.querySelector(`[data-qb-subtasks="${li}"]`);
-            if (container) {
-              const div = document.createElement('div');
-              div.innerHTML = qbSubtaskRow({ title: '', due: todayOffset(0) });
-              container.appendChild(div.firstElementChild);
+            const lineIdx = Number(qbAddSub.dataset.qbAddSubtask);
+            const accordion = qbAddSub.closest('.qb-ql-accordion');
+            let lineId = Number(accordion?.dataset.qbLineId) || 0;
+            const bookId = window._editingQBId;
+            const tempId = Date.now();
+            const lines = readQBQuestLines();
+            if (!lines[lineIdx]) { lines[lineIdx] = { title: '', subtasks: [] }; }
+            if (!lines[lineIdx].id) {
+              lines[lineIdx].id = lineId || tempId + 1;
+              lineId = lines[lineIdx].id;
+            }
+            lines[lineIdx].subtasks = lines[lineIdx].subtasks || [];
+            lines[lineIdx].subtasks.push({ id: tempId, title: '', due: todayOffset(0), completed: false });
+            renderQBQuestLines(lines);
+            if (bookId) {
+              questBooks = questBooks.map((b) => b.id === bookId ? { ...b, questLines: lines, independentQuests: readQBIndependentQuests() } : b);
+              setTimeout(() => openQBItemEditor(bookId, 'subtask', lineId, tempId), 0);
+            } else {
+              const card = document.querySelector(`.qb-subtask-card[data-sub-id="${tempId}"]`);
+              setTimeout(() => openQBItemEditorFromDom('subtask', card), 0);
             }
             return;
           }
@@ -242,12 +268,15 @@
           const qbRemoveIQ = event.target.closest('[data-qb-remove-independent]');
           if (qbRemoveIQ) { qbRemoveIQ.closest('.qb-independent-row')?.remove(); return; }
 
-          // Task selection: click row to pin its notes to the sticky area
+          // Task selection: single click = pin notes. Double click is handled below.
           const selectRow = event.target.closest('[data-select-task]');
           if (selectRow && !event.target.closest('button') && !event.target.closest('.check')) {
             const id = Number(selectRow.dataset.selectTask);
-            selectedTaskId = selectedTaskId === id ? null : id;
-            if (activeView === 'today') renderToday();
+            clearTimeout(selectRow._clickTimeout);
+            selectRow._clickTimeout = setTimeout(() => {
+              selectedTaskId = selectedTaskId === id ? null : id;
+              if (activeView === 'today') renderToday();
+            }, 200);
             return;
           }
           // Deselect task note
@@ -267,6 +296,18 @@
           // Quest book view: edit book
           const qbEdit = event.target.closest('[data-qb-edit-book]');
           if (qbEdit) { openQuestBookEditor(Number(qbEdit.dataset.qbEditBook)); return; }
+
+          // Quest book timeline item click → single-item editor
+          const qbNode = event.target.closest('[data-qb-item-id]');
+          if (qbNode && !event.target.closest('button') && !event.target.closest('.check')) {
+            openQBItemEditor(
+              Number(qbNode.dataset.qbItemBook),
+              qbNode.dataset.qbItemType,
+              qbNode.dataset.qbItemLineId ? Number(qbNode.dataset.qbItemLineId) : null,
+              Number(qbNode.dataset.qbItemId)
+            );
+            return;
+          }
 
           // Quest book view: in-card actions (toggle/delete subtask/iq)
           if (handleQuestBookAction(event)) return;
@@ -310,7 +351,34 @@
           if (diary) {
             const countEl = diary.closest('.wire-inner')?.querySelector('.notes-char-count');
             if (countEl) countEl.textContent = diary.value.length + ' CHARS';
-            localStorage.setItem('adventure-diary-draft', diary.value);
+            // If a saved diary note exists, auto-save to note body; else to localStorage draft
+            const saved = notes.find((n) => n.date === diaryDate && /日记|Diary/i.test(n.title));
+            if (saved && diary.value.trim()) {
+              saved.body = diary.value;
+              apiUpdateNote(saved.id, { title: saved.title, body: diary.value, date: diaryDate });
+            } else {
+              localStorage.setItem('adventure-diary-draft', diary.value);
+            }
+            return;
+          }
+        });
+
+        $('#viewContent').addEventListener('dblclick', (event) => {
+          const taskRow = event.target.closest('[data-task-id]');
+          if (taskRow && !event.target.closest('button') && !event.target.closest('.check')) {
+            clearTimeout(taskRow._clickTimeout);
+            const id = Number(taskRow.dataset.taskId);
+            // Quest book items (subtasks / independent quests) aren't in tasks[].
+            // They need the Quest Book editor, not the standard task editor.
+            if (tasks.some((t) => t.id === id)) {
+              openEditor(id);
+            } else {
+              const flat = flattenQuestBooks();
+              const qbItem = flat.find((t) => t.id === id);
+              if (qbItem && qbItem.bookId) {
+                openQuestBookEditor(qbItem.bookId);
+              }
+            }
             return;
           }
         });
@@ -318,7 +386,8 @@
         $('#viewContent').addEventListener('click', (event) => {
           const diaryRow = event.target.closest('[data-diary-entry-row]');
           if (diaryRow && !event.target.closest('button')) {
-            diaryDate = diaryRow.dataset.diaryDate;
+            const d = diaryRow.dataset.diaryDate;
+            if (/^\d{4}-\d{2}-\d{2}$/.test(d)) diaryDate = d;
             notesFilter = 'diary';
             renderNotes();
             return;
@@ -331,7 +400,7 @@
             if (!body) return;
             localStorage.removeItem('adventure-diary-draft');
             const title = diaryDate + ' ' + (currentLanguage === 'zh' ? '日记' : 'Diary');
-            const existing = notes.find((n) => n.date === diaryDate);
+            const existing = notes.find((n) => n.date === diaryDate && /日记|Diary/i.test(n.title));
             if (existing) {
               notes = notes.map((n) => n.id === existing.id ? { ...n, title, body } : n);
               apiUpdateNote(existing.id, { title, body, date: diaryDate });
@@ -349,14 +418,6 @@
         const qTitle = $('#quickTitle'); if (qTitle) qTitle.addEventListener('keydown', (event) => {
           if (event.key === 'Enter') addTaskFromQuick();
         });
-        document.addEventListener('keydown', (event) => {
-          if (event.key !== 'Enter') return;
-          const input = event.target.closest('.manager-title');
-          if (!input) return;
-          const manager = input.closest('[data-manager]');
-          const control = manager?.querySelector('[data-action="add-type"]');
-          if (control) addTaskFromManager(control);
-        });
         $('#openAdd').addEventListener('click', () => {
           if (activeView === 'notes') openNoteEditor(null);
           else if (activeView === 'questbook') openQuestBookEditor(null);
@@ -365,7 +426,7 @@
         $('#menuToggle').addEventListener('click', toggleSidebar);
         $('#sidebarScrim').addEventListener('click', () => setSidebar(false));
         sidebarQuery.addEventListener('change', (event) => setSidebar(false));
-        $('#editType').addEventListener('change', updateTaskFormFields);
+        const et = $('#editType'); if (et) et.addEventListener('change', updateTaskFormFields);
 
         // Quest book editor listeners
         $('#qbAddQuestLineBtn').addEventListener('click', () => {
@@ -375,14 +436,30 @@
         });
         $('#qbAddIndependentBtn').addEventListener('click', () => {
           const list = readQBIndependentQuests();
-          list.push({ title: '', due: todayOffset(0), priority: 'Med' });
+          const tempId = Date.now();
+          list.push({ id: tempId, title: '', due: todayOffset(0), priority: 'Med', completed: false });
           renderQBIndependentQuests(list);
+          if (window._editingQBId) {
+            questBooks = questBooks.map((b) => b.id === window._editingQBId ? { ...b, questLines: readQBQuestLines(), independentQuests: list } : b);
+            setTimeout(() => openQBItemEditor(window._editingQBId, 'independent', null, tempId), 0);
+          } else {
+            const row = document.querySelector(`.qb-independent-row[data-iq-id="${tempId}"]`);
+            setTimeout(() => openQBItemEditorFromDom('independent', row), 0);
+          }
         });
         $('#closeQBModal').addEventListener('click', closeQuestBookEditor);
         $('#saveQuestBook').addEventListener('click', saveQuestBookEditor);
+        $('#closeQBItemModal').addEventListener('click', closeQBItemEditor);
+        $('#saveQBItem').addEventListener('click', saveQBItemEditor);
+        $('#qbItemStart').addEventListener('change', toggleQBItemTimeField);
+        $('#qbItemEnd').addEventListener('change', toggleQBItemTimeField);
+        $('#qbItemModal').addEventListener('click', (event) => {
+          if (event.target.id === 'qbItemModal') closeQBItemEditor();
+        });
 
         $('#closeModal').addEventListener('click', closeEditor);
         $('#saveTask').addEventListener('click', saveEditor);
+        $('#deleteTaskFromEditor').addEventListener('click', deleteTaskFromEditor);
         $('#closeNoteModal').addEventListener('click', closeNoteEditor);
         $('#saveNote').addEventListener('click', saveNoteEditor);
         $('#openSettings').addEventListener('click', () => {
@@ -442,6 +519,7 @@
           if (event.key === 'Escape') {
             closeEditor();
             closeQuestBookEditor();
+            closeQBItemEditor();
             closeNoteEditor();
             closeDialogue();
             $('#settingsModal').classList.remove('open');

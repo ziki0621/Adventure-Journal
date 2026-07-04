@@ -136,12 +136,11 @@
             <div class="day-note-card">
               <div class="day-note-head">
                 <h3 class="day-note-title serif">${taskWord}</h3>
-                <span class="day-note-date">${escapeHtml(tr('type.' + task.type) || task.type)}</span>
+                <span class="day-note-date" style="display:inline-flex;align-items:center;gap:4px;">${task.type === 'questbook' ? icons.book : task.type === 'daily' ? icons.repeat : icons.spark} ${escapeHtml(tr('type.' + task.type) || task.type)}</span>
                 <button class="task-note-deselect" type="button" data-deselect-task aria-label="Deselect">✕</button>
               </div>
               <div class="task-note-meta">
                 <span class="tag">${escapeHtml(task.title || '')}</span>
-                <span class="tag ${priorityTag(task.priority)}">${escapeHtml(priorityLabel(task.priority))}</span>
                 ${formatDate(task.due) !== '' ? '<span class="day-note-date" style="font-size:10px;">' + escapeHtml(formatDate(task.due)) + '</span>' : ''}
                 ${(task.start_time || task.end_time) ? '<span class="day-note-date" style="font-size:10px;color:var(--brass);">' + escapeHtml(task.start_time || '') + (task.start_time && task.end_time ? ' — ' : '') + escapeHtml(task.end_time || '') + '</span>' : ''}
               </div>
@@ -155,20 +154,17 @@
       function renderToday() {
         setHeader(tr('view.today.title'), tr('view.today.eyebrow'), '');
         const selDate = todaySelectedDate;
-        const selDiff = (ds) => Math.round((new Date(ds + 'T00:00:00') - new Date(selDate + 'T00:00:00')) / 86400000);
-        const qbFlat = flattenQuestBooks().filter((t) => selDiff(t.due) === 0);
-        const allQBFlat = flattenQuestBooks().filter((t) => selDiff(t.due) <= 7);
-        const allEntries = [...tasks.filter((t) => selDiff(t.due) <= 7), ...allQBFlat];
+        const allEntries = todayWindowTasks();
         const counts = {
           all: allEntries.length,
-          questbook: allQBFlat.length,
+          questbook: allEntries.filter((t) => t.type === 'questbook').length,
           daily: allEntries.filter((t) => t.type === 'daily').length,
           side: allEntries.filter((t) => t.type === 'side').length,
         };
         const scoped = sortByDue(todayFilteredTasks());
-        const overdue = scoped.filter((task) => selDiff(task.due) < 0);
-        const today = scoped.filter((task) => selDiff(task.due) === 0);
-        const upcoming = scoped.filter((task) => selDiff(task.due) > 0 && selDiff(task.due) <= 7);
+        const overdue = scoped.filter((task) => taskTodayBucket(task) === 'overdue');
+        const today = scoped.filter((task) => taskTodayBucket(task) === 'today');
+
         const isToday = selDate === appToday;
         $('#viewContent').innerHTML = `
           <div class="today-dashboard-layout">
@@ -177,19 +173,20 @@
               ${renderTodayTabs(counts)}
               <div class="today-folder-panel">
                 <div class="today-folder-inner">
-                  <section class="list-section">
-                    <div class="section-head"><h3 class="serif">${isToday ? tr('section.overdue') : tr('section.dueToday')}</h3><span>${overdue.length} ${tr('unit.contracts')}</span></div>
-                    ${renderTaskList(overdue, isToday ? tr('empty.overdue') : tr('empty.today'))}
-                  </section>
                   ${isToday ? `
                   <section class="list-section">
-                    <div class="section-head"><h3 class="serif">${tr('section.dueToday')}</h3><span>${today.length} ${tr('unit.contracts')}</span></div>
-                    ${renderTaskList(today, tr('empty.today'))}
-                  </section>` : ''}
+                    <div class="section-head"><h3 class="serif">${tr('section.progress')}</h3><span>${today.length} ${tr('unit.contracts')}</span></div>
+                    ${renderSplitTaskList(today, tr('empty.today'))}
+                  </section>` : `
                   <section class="list-section">
-                    <div class="section-head"><h3 class="serif">${isToday ? tr('section.upcoming') : tr('section.selectedDay')}</h3><span>${isToday ? tr('range.next7') : formatDate(selDate)}</span></div>
-                    ${renderTaskList(isToday ? upcoming : [...overdue, ...today, ...upcoming], tr('empty.today'))}
-                  </section>
+                    <div class="section-head"><h3 class="serif">${formatDate(selDate)}</h3><span>${today.length} ${tr('unit.contracts')}</span></div>
+                    ${renderSplitTaskList(today, tr('empty.today'))}
+                  </section>`}
+                  ${overdue.length ? `
+                  <section class="list-section">
+                    <div class="section-head"><h3 class="serif">${tr('section.overdue')}</h3><span>${overdue.length} ${tr('unit.contracts')}</span></div>
+                    ${renderOverdueTaskList(overdue, tr('empty.overdue'))}
+                  </section>` : ''}
                 </div>
               </div>
             </div>
@@ -213,7 +210,6 @@
                 <div class="small-stat"><strong>${list.length}</strong><span>${tr('stats.total')}</span></div>
                 <div class="small-stat"><strong>${active.length}</strong><span>${tr('stats.active')}</span></div>
                 <div class="small-stat"><strong>${done.length}</strong><span>${tr('stats.done')}</span></div>
-                <div class="small-stat"><strong>${list.filter((task) => task.priority === 'High').length}</strong><span>${tr('stats.high')}</span></div>
               </div>
               <div class="today-folder">
                 ${renderTypeTabs(type, counts)}
@@ -221,7 +217,7 @@
                   <div class="today-folder-inner">
                     <section class="list-section">
                       <div class="section-head"><h3 class="serif">${sectionTitle}</h3><span>${visible.length} ${tr('unit.quests')}</span></div>
-                      ${renderTaskList(visible, activeFilter === 'archive' ? tr('empty.archive') : tr('empty.active'))}
+                      ${renderSplitTaskList(visible, activeFilter === 'archive' ? tr('empty.archive') : tr('empty.active'))}
                     </section>
                   </div>
                 </div>

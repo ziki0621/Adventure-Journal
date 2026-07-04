@@ -28,7 +28,6 @@ const TOOLS = [
       properties: {
         title: { type: 'string', description: 'Task title (required)' },
         type: { type: 'string', enum: ['daily', 'side'], description: 'daily=recurring, side=one-off. Default daily.' },
-        priority: { type: 'string', enum: ['High', 'Med', 'Low'], description: 'Default Med.' },
         due: { type: 'string', description: 'Due date YYYY-MM-DD. Default today.' },
         desc: { type: 'string', description: 'Optional notes/description.' },
         start_time: { type: 'string', description: 'Start time HH:MM, e.g. 09:00.' },
@@ -44,8 +43,7 @@ const TOOLS = [
         title: p.title.toUpperCase(),
         desc: p.desc || '',
         due: p.due || today(),
-        priority: p.priority || 'Med',
-        recurrence: p.type === 'side' ? undefined : (p.recurrence || 'Daily'),
+                recurrence: p.type === 'side' ? undefined : (p.recurrence || 'Daily'),
         line: p.type === 'side' ? 'Side' : (p.recurrence || 'Daily'),
         start: p.due || today(),
         end: '',
@@ -64,7 +62,6 @@ const TOOLS = [
       properties: {
         id: { type: 'number', description: 'Task ID (required)' },
         title: { type: 'string' },
-        priority: { type: 'string', enum: ['High', 'Med', 'Low'] },
         due: { type: 'string', description: 'YYYY-MM-DD' },
         desc: { type: 'string' },
         recurrence: { type: 'string', enum: ['Daily', 'Weekly'] },
@@ -79,7 +76,6 @@ const TOOLS = [
       if (!existing) return { ok: false, error: 'Task not found' };
       const updates = {};
       if (p.title !== undefined) updates.title = p.title.toUpperCase();
-      if (p.priority !== undefined) updates.priority = p.priority;
       if (p.due !== undefined) updates.due = p.due;
       if (p.desc !== undefined) updates.desc = p.desc;
       if (p.recurrence !== undefined) updates.recurrence = p.recurrence;
@@ -148,7 +144,7 @@ const TOOLS = [
         ok: true,
         count: limited.length,
         total: all.length,
-        tasks: limited.map((t) => ({ id: t.id, title: t.title, type: t.type, due: t.due, priority: t.priority, completed: t.completed, desc: t.desc ? t.desc.slice(0, 100) : '' })),
+        tasks: limited.map((t) => ({ id: t.id, title: t.title, type: t.type, due: t.due, completed: t.completed, desc: t.desc ? t.desc.slice(0, 100) : '' })),
       };
     },
   },
@@ -169,7 +165,6 @@ const TOOLS = [
           done: done.length,
           overdue: active.filter((t) => dayDiff(t.due) < 0).length,
           today: active.filter((t) => dayDiff(t.due) === 0).length,
-          highPriority: active.filter((t) => t.priority === 'High').length,
         },
       };
     },

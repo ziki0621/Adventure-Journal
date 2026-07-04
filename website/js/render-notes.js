@@ -25,9 +25,11 @@
 
       function renderNotes() {
         setHeader(tr('view.notes.title'), tr('view.notes.eyebrow'), '');
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(diaryDate)) diaryDate = todayOffset(0);
         const sorted = [...notes].sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')) || b.id - a.id);
-        const diaryNote = notes.find((n) => n.date === diaryDate);
-        const diaryEntries = sortByDue(notes.filter((n) => /日记|Diary/i.test(n.title))).reverse();
+        const isDiaryNote = (n) => /日记|Diary/i.test(n.title);
+        const diaryNote = notes.find((n) => n.date === diaryDate && isDiaryNote(n));
+        const diaryEntries = notes.filter(isDiaryNote).sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
         const scratchText = localStorage.getItem('adventure-scratchpad-v1') || '';
 
         const title = currentLanguage === 'zh' ? '冒险笔记' : 'Adventure Notes';
@@ -91,7 +93,7 @@
                       </div>
                       <div class="wire">
                         <div class="wire-inner">
-                          <textarea class="notes-diary-input" data-diary-entry id="diaryTextarea" placeholder="${diaryPlaceholder}">${escapeHtml(diaryNote ? diaryNote.body : (localStorage.getItem('adventure-diary-draft') || ''))}</textarea>
+                          <textarea class="notes-diary-input" data-diary-entry id="diaryTextarea" placeholder="${diaryPlaceholder}">${escapeHtml(diaryNote !== undefined && diaryNote !== null ? (diaryNote.body || '') : (localStorage.getItem('adventure-diary-draft') || ''))}</textarea>
                           <div class="notes-diary-footer">
                             <span class="notes-char-count">${(diaryNote ? diaryNote.body.length : (localStorage.getItem('adventure-diary-draft') || '').length)} CHARS</span>
                             <button class="chamfer shaded" type="button" id="saveDiaryEntry" style="height:34px;width:130px;">

@@ -694,14 +694,7 @@
         gap: 10px;
       }
 
-      .type-manager {
-        display: none;
-        grid-template-columns: minmax(160px, 1.6fr) minmax(118px, 0.85fr) minmax(104px, 0.75fr) auto;
-        gap: 10px;
-        margin-bottom: 16px;
-      }
-
-      .today-tabs {
+.today-tabs {
         position: relative;
         top: 0;
         z-index: 4;
@@ -837,7 +830,10 @@
         min-height: 80px;
         padding: 8px 10px;
         border: 0.5px solid var(--ink);
-        background: rgba(243, 234, 213, 0.5);
+        background-color: rgba(243, 234, 213, 0.5);
+        background-image: radial-gradient(var(--ink) 0.5px, transparent 0.5px);
+        background-size: 14px 14px;
+        background-position: 1px 1px;
         color: var(--ink);
         font-family: inherit;
         font-size: 12px;
@@ -848,7 +844,10 @@
       .task-note-desc:focus {
         outline: none;
         box-shadow: inset 0 -2px 0 var(--ink);
-        background: rgba(243, 234, 213, 0.75);
+        background-color: rgba(243, 234, 213, 0.75);
+        background-image: radial-gradient(var(--ink) 0.5px, transparent 0.5px);
+        background-size: 14px 14px;
+        background-position: 1px 1px;
       }
 
       .task-note-deselect {
@@ -1183,13 +1182,20 @@
       .day-note-input {
         width: 100%;
         min-height: 100px;
-        padding: 0;
+        padding: 8px 6px;
         border: 0;
         outline: 0;
         resize: vertical;
-        background: transparent;
+        background-color: rgba(243, 234, 213, 0.25);
+        background-image: radial-gradient(var(--ink) 0.5px, transparent 0.5px);
+        background-size: 14px 14px;
+        background-position: 1px 1px;
         color: var(--ink);
         font: 700 12px/1.7 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      .day-note-input:focus {
+        background-color: rgba(243, 234, 213, 0.45);
       }
 
       .day-note-input::placeholder {
@@ -1700,6 +1706,46 @@
         text-transform: uppercase;
       }
 
+      /* ── Split columns (timed | untimed) ── */
+      .split-task-cols {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+
+      .split-panel .wire-inner {
+        padding: 8px 10px;
+      }
+
+      .split-head {
+        margin: 0 0 8px;
+        padding-bottom: 4px;
+        border-bottom: 1px solid rgba(74, 59, 44, 0.15);
+      }
+
+      .split-head h3 {
+        font-size: 10px;
+        letter-spacing: 0.12em;
+      }
+
+      /* ── Time conflict ── */
+      .task-row.time-conflict .wire-inner {
+        box-shadow: inset 3px 0 0 var(--danger);
+        background: rgba(139, 31, 31, 0.04);
+      }
+
+      .task-row.time-conflict::after {
+        content: '⚠';
+        position: absolute;
+        right: 8px;
+        top: 50%;
+        transform: translateY(-50%);
+        z-index: 5;
+        font-size: 10px;
+        opacity: 0.7;
+        pointer-events: none;
+      }
+
       .task-list {
         display: flex;
         flex-direction: column;
@@ -1738,6 +1784,40 @@
         text-transform: uppercase;
         overflow-wrap: anywhere;
       }
+      .task-time-row {
+        padding-left: 4px;
+      }
+
+      .task-time-row .task-time {
+        font-size: 9px;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        color: var(--brass);
+      }
+
+      .overdue-date-badge {
+        display: inline-block;
+        margin-left: 8px;
+        padding: 1px 6px;
+        border: 1px solid var(--danger);
+        color: var(--danger);
+        font-size: 8px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        opacity: 0.8;
+      }
+
+      .task-span-badge {
+        display: inline-block;
+        margin-left: auto;
+        padding: 1px 6px;
+        border: 1px solid var(--brass);
+        color: var(--brass);
+        font-size: 7px;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        white-space: nowrap;
+      }
 
       .task-row.completed .task-title {
         text-decoration: line-through;
@@ -1762,7 +1842,7 @@
         height: auto;
         display: inline-flex;
         align-items: center;
-        padding: 0 2px;
+        padding: 0 3px;
         border: 0;
         background: transparent;
         box-shadow: none;
@@ -1770,6 +1850,11 @@
         font-weight: 700;
         letter-spacing: 0.12em;
         text-transform: uppercase;
+      }
+
+      .tag-type .icon {
+        width: 12px;
+        height: 12px;
       }
 
       .tag.danger {
@@ -1872,6 +1957,34 @@
       .plain-icon-button:active {
         transform: translate(2px, 2px);
         background: rgba(74, 59, 44, 0.14);
+      }
+
+      .danger-text-button {
+        width: 100%;
+        min-height: 34px;
+        border: 0;
+        background: transparent;
+        color: var(--danger);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        font: 800 10px/1 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        cursor: pointer;
+        opacity: 0.72;
+      }
+
+      .danger-text-button:hover,
+      .danger-text-button:focus-visible {
+        opacity: 1;
+        outline: none;
+      }
+
+      .danger-text-button .icon {
+        width: 14px;
+        height: 14px;
       }
 
       .icon {
@@ -2188,10 +2301,99 @@
         margin-top: 12px;
       }
 
+      /* Large textareas: dot-grid texture */
+      #editDesc,
+      #noteBody,
+      .notes-diary-input,
+      .notes-sticky textarea,
+      .day-note-input,
+      .task-note-desc {
+        background-color: rgba(243, 234, 213, 0.3);
+        background-image: radial-gradient(var(--ink) 0.5px, transparent 0.5px);
+        background-size: 14px 14px;
+        background-position: 0.5px 0.5px;
+      }
+
+      #editDesc:focus,
+      #noteBody:focus {
+        background-color: rgba(243, 234, 213, 0.5);
+      }
+
+      /* Single-line inputs: no grid texture */
+      input[type="text"],
+      input[type="date"],
+      input[type="time"],
+      input[type="password"],
+      input[type="url"],
+      input:not([type]),
+      select,
+      .qb-subtask-row input,
+      .qb-independent-row input,
+      .qb-ql-title.inline {
+        background-image: none;
+      }
+
       .form-stack {
         display: flex;
         flex-direction: column;
         gap: 12px;
+      }
+
+      /* ── Single-line inputs in modal forms ── */
+      .form-stack .field {
+        height: 36px;
+        padding: 2px 0;
+        border: 0;
+        background: transparent;
+        box-shadow: none;
+      }
+
+      .form-stack .field .wire-inner {
+        border: 0;
+        padding: 0;
+      }
+
+      .form-stack .field .wire-inner::after {
+        left: 0;
+        right: 0;
+        opacity: 0.6;
+      }
+
+      .form-stack .field:focus-within .wire-inner::after {
+        opacity: 1;
+      }
+
+      .form-stack .field input,
+      .form-stack .field select {
+        padding: 0 2px;
+        font-size: 12px;
+        background: transparent;
+      }
+
+      .form-stack .textarea-field {
+        border: 0;
+        background: transparent;
+        box-shadow: none;
+      }
+
+      .form-stack .textarea-field .wire-inner {
+        border: 0;
+        padding: 0;
+      }
+
+      .form-stack .textarea-field .wire-inner::after {
+        left: 0;
+        right: 0;
+        opacity: 0.6;
+      }
+
+      .form-stack .textarea-field:focus-within .wire-inner::after {
+        opacity: 1;
+      }
+
+      .form-stack .select-wrap .wire-inner {
+        border: 0;
+        padding: 0;
       }
 
       .language-options {
@@ -3008,7 +3210,26 @@
     font-size: 10px;
   }
 }
-      /* ── Notes View (手记) ──────────────────── */
+      
+      /* ── Single Item Editor modal ── */
+      #qbItemModal .modal { max-width: 460px; }
+
+      /* ── Quest book timeline nodes: clickable ── */
+      .qb-node { cursor: pointer; }
+      .qb-node:hover .qb-node-inner {
+        border-color: var(--ink);
+      }
+      .qb-node:hover .qb-node-inner::after {
+        content: '✎';
+        position: absolute;
+        top: 4px;
+        right: 24px;
+        font-size: 9px;
+        opacity: 0.4;
+        pointer-events: none;
+      }
+
+/* ── Notes View (手记) ──────────────────── */
       .notes-layout {
         display: grid;
         grid-template-columns: minmax(220px, 300px) minmax(0, 1fr);
@@ -3023,11 +3244,14 @@
       .notes-sticky textarea {
         width: 100%;
         min-height: 240px;
-        padding: 0;
+        padding: 8px 6px;
         border: 0;
         outline: none;
         resize: vertical;
-        background: transparent;
+        background-color: rgba(243, 234, 213, 0.25);
+        background-image: radial-gradient(var(--ink) 0.5px, transparent 0.5px);
+        background-size: 14px 14px;
+        background-position: 1px 1px;
         color: var(--ink);
         font: 700 12px/1.7 ui-sans-serif, system-ui, -apple-system, sans-serif;
       }
@@ -3064,9 +3288,16 @@
         border: 0;
         outline: none;
         resize: vertical;
-        background: transparent;
+        background-color: rgba(243, 234, 213, 0.25);
+        background-image: radial-gradient(var(--ink) 0.5px, transparent 0.5px);
+        background-size: 14px 14px;
+        background-position: 1px 1px;
         color: var(--ink);
         font: 700 12px/1.8 ui-sans-serif, system-ui, -apple-system, sans-serif;
+      }
+
+      .notes-diary-input:focus {
+        background-color: rgba(243, 234, 213, 0.45);
       }
 
       .notes-diary-input::placeholder {
@@ -3179,11 +3410,7 @@
           grid-template-columns: 1fr;
         }
 
-        .type-manager {
-          grid-template-columns: 1fr;
-        }
-
-        .today-dashboard-layout {
+.today-dashboard-layout {
           grid-template-columns: 1fr;
           gap: 18px;
         }

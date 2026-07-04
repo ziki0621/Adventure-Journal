@@ -19,8 +19,6 @@
         { value: 'side', labelKey: 'type.side' },
       ];
 
-      const priorityOptions = ['High', 'Med', 'Low'];
-      const storageKey = 'adventure-ledger-v4';
       const languageKey = 'adventure-ledger-language';
       const agentConfigKey = 'adventure-agent-config-v1';
       const appTimeZone = 'Asia/Shanghai';

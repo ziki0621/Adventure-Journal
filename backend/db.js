@@ -76,7 +76,7 @@ function ensureColumn(table, column, definition) {
 function getAllTasks() { return syncQueryAll('SELECT * FROM tasks ORDER BY id ASC').map(rowToTask); }
 function createTask(data) {
   const id = data.id || Date.now();
-  run('INSERT INTO tasks (id,type,title,desc,due,priority,line,completed,recurrence,start,end,streak,start_time,end_time) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)',[id,data.type,data.title,data.desc||'',data.due,data.priority||'Med',data.line||'Independent',data.completed?1:0,data.recurrence||null,data.start||null,data.end||null,data.streak||0,data.start_time||'',data.end_time||'']);
+  run('INSERT INTO tasks (id,type,title,desc,due,priority,line,completed,recurrence,start,end,streak,start_time,end_time) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)',[id,data.type,data.title,data.desc||'',data.due,data.priority||'Low',data.line||'Independent',data.completed?1:0,data.recurrence||null,data.start||null,data.end||null,data.streak||0,data.start_time||'',data.end_time||'']);
   saveDb(); return queryOne('SELECT * FROM tasks WHERE id = ?', [id]);
 }
 function updateTask(id, data) {
@@ -109,7 +109,7 @@ function createQuestBook(data) {
       );
     });
   });
-  (data.independentQuests || []).forEach((iq, i) => { run('INSERT INTO independent_quests (id, book_id, title, due, priority, completed, desc) VALUES (?, ?, ?, ?, ?, ?, ?)', [iq.id || (bid + 1000 + i), bid, iq.title, iq.due, iq.priority || 'Med', iq.completed ? 1 : 0, iq.desc || '']); });
+  (data.independentQuests || []).forEach((iq, i) => insertIndependentQuest(bid, iq, iq.id || (bid + 1000 + i)));
   saveDb(); return getBookById(bid);
 }
 function updateQuestBook(id, data) {
@@ -125,7 +125,7 @@ function updateQuestBook(id, data) {
       );
     });
   });
-  (data.independentQuests || []).forEach((iq, i) => { run('INSERT INTO independent_quests (id, book_id, title, due, priority, completed, desc) VALUES (?, ?, ?, ?, ?, ?, ?)', [iq.id || (id + 2000 + i), id, iq.title, iq.due, iq.priority || 'Med', iq.completed ? 1 : 0, iq.desc || '']); });
+  (data.independentQuests || []).forEach((iq, i) => insertIndependentQuest(id, iq, iq.id || (id + 2000 + i)));
   saveDb(); return getBookById(id);
 }
 function deleteQuestBook(id) { run('DELETE FROM quest_books WHERE id = ?', [id]); saveDb(); }
@@ -134,6 +134,25 @@ function getBookById(id) {
   return { id: b.id, name: b.name, start: b.start || null, end: b.end || null, questLines: syncQueryAll('SELECT * FROM quest_lines WHERE book_id = ? ORDER BY id ASC', [id]).map((l) => ({ ...l, subtasks: syncQueryAll('SELECT * FROM subtasks WHERE line_id = ? ORDER BY id ASC', [l.id]) })), independentQuests: syncQueryAll('SELECT * FROM independent_quests WHERE book_id = ? ORDER BY id ASC', [id]) };
 }
 function replaceAllQuestBooks(arr) { run('BEGIN TRANSACTION'); try { run('DELETE FROM quest_books'); arr.forEach((b) => createQuestBook(b)); run('COMMIT'); saveDb(); } catch (e) { run('ROLLBACK'); throw e; } }
+function insertIndependentQuest(bookId, iq, fallbackId) {
+  const due = iq.start || iq.due || new Date().toISOString().slice(0, 10);
+  run(
+    'INSERT INTO independent_quests (id, book_id, title, due, priority, completed, desc, start, end, start_time, end_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    [
+      fallbackId,
+      bookId,
+      iq.title,
+      due,
+      iq.priority || 'Med',
+      iq.completed ? 1 : 0,
+      iq.desc || '',
+      iq.start || due,
+      iq.end || null,
+      iq.start_time || '',
+      iq.end_time || '',
+    ]
+  );
+}
 function toggleSubtask(bookId, lineId, subId) { const s = queryOne('SELECT * FROM subtasks WHERE id = ? AND line_id = ?', [subId, lineId]); if (!s) return false; run('UPDATE subtasks SET completed = ? WHERE id = ?', [s.completed ? 0 : 1, subId]); saveDb(); return true; }
 function deleteSubtask(bookId, lineId, subId) { run('DELETE FROM subtasks WHERE id = ? AND line_id = ?', [subId, lineId]); saveDb(); return true; }
 function toggleIndependentQuest(bookId, iqId) { const iq = queryOne('SELECT * FROM independent_quests WHERE id = ? AND book_id = ?', [iqId, bookId]); if (!iq) return false; run('UPDATE independent_quests SET completed = ? WHERE id = ?', [iq.completed ? 0 : 1, iqId]); saveDb(); return true; }
