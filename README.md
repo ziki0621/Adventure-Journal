@@ -23,7 +23,7 @@ browser ─── fetch /api/* ─── Express ─── sql.js (WASM) ──�
                 └── POST /api/agent/chat (SSE) ─── LLM API ← service-side API key
 ```
 
-- **前端**: Vanilla JS（12 模块）、CSS3、零框架
+- **前端**: Vanilla JS,CSS3
 - **后端**: Node.js + Express + SQLite（sql.js）
 - **AI Agent**: OpenAI 兼容 function calling、自动降级 JSON 解析
 
