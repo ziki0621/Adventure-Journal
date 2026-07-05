@@ -1,6 +1,6 @@
 # Adventure Journal（冒险书）
 
-> 羊皮纸复古风格的全栈桌面任务管理应用。搭载自建 AI Agent 引擎（10 工具注册表 + 多轮执行循环 + 原生 function calling）
+> 一款灵感来源于RPG冒险游戏的全栈桌面任务管理应用。搭载自建 AI Agent个人事务管理助手“安雅”
 
 ---
 
