@@ -1,6 +1,7 @@
 # Adventure Journal（冒险书）
 
 > 一款灵感来源于RPG冒险游戏的全栈桌面任务管理应用。搭载自建 AI Agent个人事务管理助手“安雅”
+![Uploading image.png…]()
 
 ---
 
