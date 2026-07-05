@@ -6,6 +6,7 @@ const questBooksRouter = require('./routes/questBooks');
 const notesRouter = require('./routes/notes');
 const dayNotesRouter = require('./routes/dayNotes');
 const agentRouter = require('./routes/agent');
+const dailyChecksRouter = require('./routes/dailyChecks');
 
 const app = express();
 const PORT = Number(process.env.PORT || 4173);
@@ -36,6 +37,7 @@ app.use('/api/quest-books', questBooksRouter);
 app.use('/api/notes', notesRouter);
 app.use('/api/day-notes', dayNotesRouter);
 app.use('/api/agent', agentRouter);
+app.use('/api/daily-checks', dailyChecksRouter);
 
 // Static files — serve website/
 const staticDir = path.join(__dirname, '..', 'website');

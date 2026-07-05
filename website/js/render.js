@@ -1,5 +1,5 @@
 /* ================================================================
-   Adventure Ledger — Render (shared)
+   Adventure Ledger - Render (shared)
    renderNav, setHeader, applyLanguage, taskRow, renderTaskList,
    sortByDue, tab renderers, renderView dispatcher, switchView.
    Also: date helpers (dateDiffIso, normalizeQbTimelineItem,
@@ -40,6 +40,7 @@
           field.classList.toggle('task-field-hidden', !visibility[key]);
         });
       }
+
       function setHeader(title, eyebrow, subtitle) {
         $('#viewTitle').textContent = title;
         $('#viewEyebrow').textContent = eyebrow;
@@ -62,7 +63,7 @@
         const eEndLbl = document.querySelector('label[for="editEndDate"]'); if (eEndLbl) eEndLbl.textContent = tr('field.end');
         document.querySelector('label[for="editLine"]').textContent = tr('field.line');
         document.querySelector('label[for="editRecurrence"]').textContent = tr('field.recurrence');
-        
+
         const qbLinesBtn = $('#qbAddQuestLineBtn');
         if (qbLinesBtn) qbLinesBtn.textContent = tr('qb.addLine');
         const qbIndepBtn = $('#qbAddIndependentBtn');
@@ -97,22 +98,29 @@
         updateTaskFormFields();
       }
 
-      function taskRow(task) {
+      function taskRow(task, opts = {}) {
         const isSelected = task.id === selectedTaskId;
         const isSpan = task.end && task.end !== task.due;
+        const todayCheck = task.type === 'daily' && dailyChecks[task.id]
+          ? dailyChecks[task.id].find((c) => c.date === todayOffset(0)) : null;
+        const dailyDone = todayCheck && todayCheck.status === 'done';
+        const showSpanBadge = isSpan && !(opts.hideDailyDates && task.type === 'daily');
         return `
-          <article class="wire task-row ${task.completed ? 'completed shaded' : ''} ${isSelected ? 'selected' : ''}" data-select-task="${task.id}" data-task-id="${task.id}">
+          <article class="wire task-row ${(task.type === 'daily' ? dailyDone : task.completed) ? 'completed shaded' : ''} ${isSelected ? 'selected' : ''}" data-select-task="${task.id}" data-task-id="${task.id}">
             <div class="wire-inner">
-              <button class="check ${task.completed ? 'active' : ''}" type="button" data-action="toggle" data-id="${task.id}" aria-label="Toggle ${escapeHtml(task.title)}">
+              <button class="check ${(task.type === 'daily' ? dailyDone : task.completed) ? 'active' : ''}" type="button" data-action="toggle" data-id="${task.id}" aria-label="Toggle ${escapeHtml(task.title)}">
                 <span class="check-box"><svg class="check-mark" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 13l4 4L19 7" /></svg></span>
               </button>
               <div class="task-main">
                 <div class="task-title-row">
                   <span class="tag tag-type" title="${escapeHtml(typeLabel(task.type))}">${task.type === 'questbook' ? icons.book : task.type === 'daily' ? icons.repeat : icons.spark}</span>
                   <span class="task-title serif">${escapeHtml(task.title)}</span>
-                  ${isSpan ? `<span class="task-span-badge">${escapeHtml(formatDate(task.due))} → ${escapeHtml(formatDate(task.end))}</span>` : ''}
+                  ${showSpanBadge ? `<span class="task-span-badge">${escapeHtml(formatDate(task.due))} -> ${escapeHtml(formatDate(task.end))}</span>` : ''}
                 </div>
-                ${(task.start_time || task.end_time) ? `<div class="task-time-row"><span class="task-time">${escapeHtml(task.start_time || '--:--')} — ${escapeHtml(task.end_time || '--:--')}</span></div>` : ''}
+                ${(task.start_time || task.end_time) ? `<div class="task-time-row"><span class="task-time">${escapeHtml(task.start_time || '--:--')} - ${escapeHtml(task.end_time || '--:--')}</span></div>` : ''}
+              </div>
+              <div class="task-actions">
+                <button class="plain-icon-button" type="button" data-action="${task.archived ? 'unarchive' : 'archive'}" data-id="${task.id}" aria-label="${task.archived ? (currentLanguage === 'zh' ? '取消归档' : 'Unarchive') : (currentLanguage === 'zh' ? '归档' : 'Archive')}" title="${task.archived ? (currentLanguage === 'zh' ? '取消归档' : 'Unarchive') : (currentLanguage === 'zh' ? '归档' : 'Archive')}">${icons.archive}</button>
               </div>
             </div>
           </article>
@@ -121,7 +129,7 @@
 
       function renderTaskList(list, emptyText = 'No quests found.') {
         if (!list.length) return `<div class="wire"><div class="wire-inner empty serif">${emptyText}</div></div>`;
-        return `<div class="task-list">${list.map(taskRow).join('')}</div>`;
+        return `<div class="task-list">${list.map((task) => taskRow(task)).join('')}</div>`;
       }
 
       function sortByDue(list) {
@@ -134,8 +142,20 @@
         return a.start_time < b.end_time && b.start_time < a.end_time;
       }
 
-      function renderSplitTaskList(list, emptyText) {
-        // Multi-day tasks (end ≠ due) go to untimed column so their date range is visible
+      function renderSplitPanel(label, list, rowRenderer) {
+        if (!list.length) return '';
+        return `
+          <div class="wire split-panel">
+            <div class="wire-inner" style="padding:8px 10px;">
+              <div class="section-head split-head"><h3 class="serif">${label}</h3><span>${list.length}</span></div>
+              <div class="task-list">${list.map(rowRenderer).join('')}</div>
+            </div>
+          </div>
+        `;
+      }
+
+      function renderSplitTaskList(list, emptyText, opts = {}) {
+        if (!list.length) return `<div class="wire"><div class="wire-inner empty serif">${emptyText}</div></div>`;
         const isSpan = (t) => t.end && t.end !== t.due;
         const timed = list.filter((t) => (t.start_time && t.end_time) && !isSpan(t));
         const untimed = list.filter((t) => (!t.start_time || !t.end_time) || isSpan(t));
@@ -150,36 +170,29 @@
         }
         const timedLabel = currentLanguage === 'zh' ? '已安排时段' : 'Scheduled';
         const untimedLabel = currentLanguage === 'zh' ? '未设定时间' : 'Unscheduled';
-        const wrapRow = (t) => conflicts.has(t.id)
-          ? taskRow(t).replace('class="wire task-row', 'class="wire task-row time-conflict')
-          : taskRow(t);
+        const wrapRow = (t) => {
+          const row = taskRow(t, opts);
+          return conflicts.has(t.id)
+            ? row.replace('class="wire task-row', 'class="wire task-row time-conflict')
+            : row;
+        };
 
         return `
           <div class="split-task-cols">
-            <div class="wire split-panel">
-              <div class="wire-inner" style="padding:8px 10px;">
-                <div class="section-head split-head"><h3 class="serif">${timedLabel}</h3><span>${timed.length}</span></div>
-                ${timed.length ? `<div class="task-list">${timed.map(wrapRow).join('')}</div>` : `<div class="wire"><div class="wire-inner empty serif">—</div></div>`}
-              </div>
-            </div>
-            <div class="wire split-panel">
-              <div class="wire-inner" style="padding:8px 10px;">
-                <div class="section-head split-head"><h3 class="serif">${untimedLabel}</h3><span>${untimed.length}</span></div>
-                ${untimed.length ? `<div class="task-list">${untimed.map(taskRow).join('')}</div>` : `<div class="wire"><div class="wire-inner empty serif">—</div></div>`}
-              </div>
-            </div>
+            ${renderSplitPanel(timedLabel, timed, wrapRow)}
+            ${renderSplitPanel(untimedLabel, untimed, (t) => taskRow(t, opts))}
           </div>
         `;
       }
 
-      function overdueTaskRow(task) {
-        const row = taskRow(task);
+      function overdueTaskRow(task, opts = {}) {
+        const row = taskRow(task, opts);
         const dateLabel = `<span class="overdue-date-badge">${escapeHtml(formatDate(task.due))}</span>`;
-        // Insert due date badge right after task-title-row
         return row.replace(/(<div class="task-title-row">.*?<\/div>)/s, '$1' + dateLabel);
       }
 
-      function renderOverdueTaskList(list, emptyText) {
+      function renderOverdueTaskList(list, emptyText, opts = {}) {
+        if (!list.length) return `<div class="wire"><div class="wire-inner empty serif">${emptyText}</div></div>`;
         const isSpan = (t) => t.end && t.end !== t.due;
         const timed = list.filter((t) => (t.start_time && t.end_time) && !isSpan(t));
         const untimed = list.filter((t) => (!t.start_time || !t.end_time) || isSpan(t));
@@ -188,21 +201,12 @@
 
         return `
           <div class="split-task-cols">
-            <div class="wire split-panel">
-              <div class="wire-inner" style="padding:8px 10px;">
-                <div class="section-head split-head"><h3 class="serif">${timedLabel}</h3><span>${timed.length}</span></div>
-                ${timed.length ? `<div class="task-list">${timed.map(overdueTaskRow).join('')}</div>` : `<div class="wire"><div class="wire-inner empty serif">—</div></div>`}
-              </div>
-            </div>
-            <div class="wire split-panel">
-              <div class="wire-inner" style="padding:8px 10px;">
-                <div class="section-head split-head"><h3 class="serif">${untimedLabel}</h3><span>${untimed.length}</span></div>
-                ${untimed.length ? `<div class="task-list">${untimed.map(overdueTaskRow).join('')}</div>` : `<div class="wire"><div class="wire-inner empty serif">—</div></div>`}
-              </div>
-            </div>
+            ${renderSplitPanel(timedLabel, timed, (t) => overdueTaskRow(t, opts))}
+            ${renderSplitPanel(untimedLabel, untimed, (t) => overdueTaskRow(t, opts))}
           </div>
         `;
       }
+
       function dateDiffIso(startDate, endDate) {
         return Math.round((isoDateMs(endDate) - isoDateMs(startDate)) / 86400000);
       }
@@ -222,6 +226,7 @@
       function dateFromRangeDay(range, dayNumber) {
         return addDaysIso(range.start, dayNumber - 1);
       }
+
       function renderTodayTabs(counts) {
         const tabs = [
           { id: 'all', label: tr('tab.all'), count: counts.all },
@@ -283,15 +288,19 @@
           </div>
         `;
       }
+
       function taskStartDate(task) {
         return task.start || task.due;
       }
+
       function taskEndDate(task) {
         return task.end || task.due;
       }
+
       function diffFromTodaySelected(dateString) {
         return Math.round((new Date(dateString + 'T00:00:00') - new Date(todaySelectedDate + 'T00:00:00')) / 86400000);
       }
+
       function taskTodayBucket(task) {
         const startDiff = diffFromTodaySelected(taskStartDate(task));
         const endDiff = diffFromTodaySelected(taskEndDate(task));
@@ -299,9 +308,11 @@
         if (startDiff <= 0 && endDiff >= 0) return 'today';
         return 'outside';
       }
+
       function todayWindowTasks() {
-        return [...tasks, ...flattenQuestBooks()].filter((task) => taskTodayBucket(task) !== 'outside');
+        return [...tasks, ...flattenQuestBooks()].filter((task) => !task.archived && taskTodayBucket(task) !== 'outside');
       }
+
       function todayFilteredTasks() {
         const visible = todayWindowTasks();
         if (todayFilter === 'questbook') return visible.filter((t) => t.type === 'questbook');
@@ -309,6 +320,7 @@
         if (todayFilter === 'side') return visible.filter((t) => t.type === 'side');
         return visible;
       }
+
       function todayStatusText(key) {
         const copy = {
           en: {
@@ -334,6 +346,7 @@
         if (Object.prototype.hasOwnProperty.call(copy.en, key)) return copy.en[key];
         return key;
       }
+
       function renderView() {
         renderNav();
         if (activeView === 'today') renderToday();

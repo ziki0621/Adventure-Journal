@@ -9,7 +9,6 @@
         { id: 'questbook', labelKey: 'nav.questbook', icon: 'book' },
         { id: 'daily', labelKey: 'nav.daily', icon: 'repeat' },
         { id: 'side', labelKey: 'nav.side', icon: 'spark' },
-        { id: 'timeline', labelKey: 'nav.timeline', icon: 'calendar' },
         { id: 'notes', labelKey: 'nav.notes', icon: 'note' },
       ];
 
@@ -45,11 +44,11 @@
       let questBooks = [];
       let notes = [];
       let dayNotes = {};
+      let dailyChecks = {};    // { taskId: [{id,date,status,...}] }
       let activeView = 'today';
       let todayFilter = 'all';
       let timelineFilter = 'all';
       let typeFilters = { questbook: 'all', daily: 'all', side: 'all' };
-      let notesFilter = 'diary';
       let diaryDate = '';          // initialized in utils.js after todayOffset is defined
       let todaySelectedDate = '';  // date picked in Today view mini-calendar
       let editingId = null;

@@ -69,4 +69,20 @@ router.patch('/:id/toggle', (req, res) => {
   }
 });
 
+router.patch('/:id/archive', (req, res) => {
+  try {
+    const updated = db.archiveTask(Number(req.params.id));
+    if (!updated) return res.status(404).json({ error: 'Task not found' });
+    res.json(updated);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+router.patch('/:id/unarchive', (req, res) => {
+  try {
+    const updated = db.unarchiveTask(Number(req.params.id));
+    if (!updated) return res.status(404).json({ error: 'Task not found' });
+    res.json(updated);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 module.exports = router;

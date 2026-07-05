@@ -27,6 +27,12 @@
       async function apiDeleteTask(id) {
         await fetch(API + '/tasks/' + id, { method: 'DELETE' });
       }
+      async function apiArchiveTask(id) {
+        await fetch(API + '/tasks/' + id + '/archive', { method: 'PATCH' });
+      }
+      async function apiUnarchiveTask(id) {
+        await fetch(API + '/tasks/' + id + '/unarchive', { method: 'PATCH' });
+      }
       async function apiToggleTask(id) {
         await fetch(API + '/tasks/' + id + '/toggle', { method: 'PATCH' });
       }
@@ -49,6 +55,15 @@
         await fetch(API + '/notes/' + id, { method: 'DELETE' });
       }
 
+      async function autoResetDailyTasks() {
+        try { const res = await fetch(API + '/daily-checks/auto-reset', { method: 'POST' }); return await res.json(); } catch (e) { return {}; }
+      }
+      async function apiToggleDailyCheck(taskId, date) {
+        const res = await fetch(API + '/daily-checks/' + taskId + '/' + date + '/toggle', { method: 'PATCH' }); return res.json();
+      }
+      async function loadDailyChecks(taskId) {
+        try { const res = await fetch(API + '/daily-checks/' + taskId); return await res.json(); } catch (e) { return []; }
+      }
       async function loadDayNotes() {
         try {
           // Load all day notes from server. The API doesn't have a GET-all,
@@ -161,6 +176,22 @@
           fetch(API + '/day-notes/' + date, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content }) }).catch(() => {});
         });
       }
+            async function exportAllData() {
+        const res = await fetch(API + '/tasks');
+        const tasks = await res.json();
+        const res2 = await fetch(API + '/quest-books');
+        const questBooks = await res2.json();
+        const res3 = await fetch(API + '/notes');
+        const notes = await res3.json();
+        const blob = new Blob([JSON.stringify({ tasks, questBooks, notes, exportedAt: new Date().toISOString() }, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'adventure-journal-backup-' + new Date().toISOString().slice(0, 10) + '.json';
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+
       function saveAgentMessages() {
         const unsaved = agentMessages.slice(agentSaveIndex);
         if (!unsaved.length) return;
@@ -185,7 +216,6 @@
                 bookName: book.name,
                 bookId: book.id,
                 questLineId: line.id,
-                priority: 'Med',
                 desc: sub.desc || '',
                 _source: 'subtask',
               }));
@@ -197,7 +227,6 @@
               line: book.name,
               bookName: book.name,
               bookId: book.id,
-              priority: iq.priority || 'Med',
               desc: iq.desc || '',
               _source: 'independent',
             }));

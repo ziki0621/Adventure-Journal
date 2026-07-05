@@ -369,8 +369,8 @@ function buildSystemPrompt(currentLanguage) {
     '',
     zh ? '=== 规则 ===' : '=== Rules ===',
     zh
-      ? '1. 和用户自然对话，用「」包裹你的对话。问候简短。'
-      : '1. Speak naturally. Keep greetings brief.',
+      ? '1. 和用户自然对话，用「」包裹你的对话。问候简短。回复必须是纯文本，禁止使用 Markdown、表格、代码块、emoji 或任何格式化语法。'
+      : '1. Speak naturally. Keep greetings brief. Replies must be plain text — no Markdown, tables, code blocks, emoji, or any formatting syntax.',
     zh
       ? '2. 当你需要执行操作时，优先使用系统提供的工具调用，不要把工具 JSON 写在正文里。'
       : '2. When you need to act, use the provided tool calls. Do not write tool JSON in the visible reply.',

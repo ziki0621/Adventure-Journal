@@ -1,6 +1,6 @@
-# Adventure Ledger（冒险书）
+# Adventure Journal（冒险书）
 
-一款羊皮纸复古风格的桌面任务管理应用。前端为纯 HTML/CSS/JS 单文件（6300+ 行），后端为 Node.js + Express + SQLite。打包为 Windows `.exe` 桌面应用。
+一款羊皮纸复古风格的 Web 任务管理应用。前端为 vanilla HTML/CSS/JS，后端为 Node.js + Express + SQLite。
 
 ---
 
@@ -24,10 +24,6 @@
 │     day_notes / agent_* / …                 │
 └─────────────────────────────────────────────┘
 ```
-
-**可选包装**：Electron → 打包为 `.exe` 桌面应用
-
----
 
 ## 功能总览
 
@@ -222,9 +218,6 @@ npm run dev
 
 # 仅静态文件（无数据库）
 npm run dev:static
-
-# 打包为 Windows 桌面应用
-npm run build:exe
 ```
 
 启动后访问 `http://127.0.0.1:4173/`。
@@ -251,9 +244,6 @@ npm run build:exe
 │       ├── guide-anya.png   # 安雅像素风立绘
 │       ├── icon.png         # 应用 Logo
 │       └── paper-bg-*.png   # 背景纹理（备用）
-├── electron/
-│   ├── main.js             # Electron 主进程
-│   └── preload.js          # 预加载桥接
 ├── data/                    # SQLite 数据库目录
 ├── package.json
 └── README.md

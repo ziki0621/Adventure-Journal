@@ -55,6 +55,24 @@
         return 'normal';
       }
 
+      function cleanAnyaReply(text) {
+        // Strip markdown, then convert newlines to <br> for display.
+        let t = text || '';
+        t = t.replace(/^#{1,6}\s+/gm, '');
+        t = t.replace(/\*{1,3}([^*]+)\*{1,3}/g, '$1');
+        t = t.replace(/`{1,3}[^`]*`{1,3}/g, '');
+        t = t.replace(/\|.*\|/g, (m) => m.replace(/[|:-]/g, ' '));
+        t = t.replace(/^[-*]\s+/gm, '· ');
+        t = t.replace(/^\d+[.)]\s+/gm, '');
+        t = t.replace(/^>/gm, '');
+        t = t.replace(/\n{3,}/g, '\n\n');
+        t = t.trim();
+        // Now escape for HTML safety, then convert newlines to <br>
+        t = escapeHtml(t);
+        t = t.replace(/\n/g, '<br>');
+        return t;
+      }
+
       function setAnyaPortrait(expression) {
         if (!expression || expression === currentAnyaExpression) return;
         currentAnyaExpression = expression;
@@ -74,17 +92,18 @@
       function dialogueLines() {
         const zh = currentLanguage === 'zh';
         return zh
-          ? ['「你好！我是你的终端操作向导，安雅。欢迎使用这台古老的任务管制终端。」',
-             '「在这个终端里，你可以记录待办任务、查阅历史档案，或是执行系统备份。」',
-             '「需要我为你导览一下系统的基础操作吗？」']
-          : ['"Hello! I\'m Anya, your terminal guide. Welcome to this vintage quest-control terminal."',
-             '"Here you can log quests, browse your archives, or run system backups."',
-             '"Would you like a quick tour of the basics?"'];
+          ? ['「嗨！我是安雅，你的冒险向导。有什么我可以帮你的？」']
+          : ['"Hey there! I\'m Anya, your adventure guide. What can I help you with?"'];
       }
 
-      function dialogueOptionLabels() {
-        if (currentLanguage === 'zh') return ['需要导览', '我自己看看'];
-        return ['Show me around', 'I\'ll explore'];
+      function dialogueQuickButtons() {
+        const zh = currentLanguage === 'zh';
+        return [
+          { id: 'schedule', label: zh ? '安排任务' : 'Schedule Task', icon: icons.spark },
+          { id: 'briefing', label: zh ? '今日简报' : 'Daily Briefing', icon: icons.sun },
+          { id: 'note', label: zh ? '快速笔记' : 'Quick Note', icon: icons.note },
+          { id: 'chat', label: zh ? '闲聊' : 'Chat', icon: icons.edit },
+        ];
       }
 
       function updateDialogueStatus(state) {
@@ -114,14 +133,14 @@
 
         dialogueStopTimer();
         if (dialogueCharIdx < currentText.length) {
-          if (textEl) textEl.innerHTML = escapeHtml(currentText.substring(0, dialogueCharIdx)) + '<span class="cursor">_</span>';
+          if (textEl) textEl.innerHTML = cleanAnyaReply(currentText.substring(0, dialogueCharIdx)) + '<span class="cursor">_</span>';
           if (arrowEl) arrowEl.style.display = 'none';
           dialogueTimer = setInterval(() => { dialogueCharIdx++; renderDialogue(); }, 40);
           return;
         }
 
         // Fully typed
-        if (textEl) textEl.innerHTML = escapeHtml(currentText);
+        if (textEl) textEl.innerHTML = cleanAnyaReply(currentText);
         dialogueStopTimer();
 
         if (!dialogueCustomReply && arrowEl) {
@@ -136,15 +155,14 @@
 
         if (optionsEl) {
           if (dialogueShowOptions && !dialogueCustomReply) {
-            const [yesLabel, noLabel] = dialogueOptionLabels();
-            optionsEl.innerHTML = [
-              '<div class="dialogue-option-btn" id="dialogueOptionYes"><div class="chamfer shaded">',
-              '<span class="chamfer-outer"><span class="chamfer-mid"><span class="chamfer-line"><span class="chamfer-face serif">' + escapeHtml(yesLabel) + '</span></span></span></span>',
-              '</div></div>',
-              '<div class="dialogue-option-btn" id="dialogueOptionNo"><div class="chamfer">',
-              '<span class="chamfer-outer"><span class="chamfer-mid"><span class="chamfer-line"><span class="chamfer-face serif">' + escapeHtml(noLabel) + '</span></span></span></span>',
-              '</div></div>',
-            ].join('');
+            const buttons = dialogueQuickButtons();
+            optionsEl.innerHTML = '<div class="dialogue-quick-btns">' + buttons.map((btn) => `
+              <button class="chamfer shaded dialogue-quick-btn" type="button" data-quick-action="${btn.id}">
+                <span class="chamfer-outer"><span class="chamfer-mid"><span class="chamfer-line">
+                  <span class="chamfer-face serif" style="display:flex;align-items:center;gap:6px;">${btn.icon}<span>${escapeHtml(btn.label)}</span></span>
+                </span></span></span>
+              </button>
+            `).join('') + '</div>';
           } else {
             optionsEl.innerHTML = '';
           }
@@ -159,23 +177,108 @@
         if (!dialogueCustomReply && dialogueLineIdx < lines.length - 1) { dialogueLineIdx++; dialogueCharIdx = 0; if (dialogueLineIdx === lines.length - 1) setAnyaPortrait('confused'); renderDialogue(); }
       }
 
-      function dialogueHandleOption(type) {
+      
+      function dialogueHandleQuickAction(action) {
         const zh = currentLanguage === 'zh';
+        const hasAPI = !!(agentConfig.apiBase || agentConfig.model);
         dialogueShowOptions = false;
         dialogueCharIdx = 0;
-        if (type === 'yes') {
+
+        if (action === 'note') {
           dialogueCustomReply = zh
-            ? '「太好了！你可以点击左上角的【菜单按钮】打开导航，或是直接在首页输入你的第一个任务。需要时点我的头像呼叫我。」'
-            : '"Great! Tap the menu button to open navigation, or type your first quest on the home screen. Tap my portrait anytime you need me."';
-        } else {
-          dialogueCustomReply = zh
-            ? '「没问题，你可以慢慢摸索。需要帮助时随时点击我的头像呼叫我喔！」'
-            : '"No problem — take your time. Tap my portrait anytime to call me back!"';
+            ? '「好的，帮你打开笔记。」'
+            : '"Sure, opening a note for you."';
+          setAnyaPortrait('happy');
+          renderDialogue();
+          const chatBar = $('#dialogueChatBar');
+          if (chatBar) chatBar.style.display = '';
+          setTimeout(() => openNoteEditor(null), 500);
+          return;
         }
-        setAnyaPortrait('happy');
-        renderDialogue();
-        const chatBar = $('#dialogueChatBar');
-        if (chatBar) chatBar.style.display = '';
+
+        if (action === 'briefing') {
+          if (!hasAPI) {
+            const all = sortByDue(agentAllTasks());
+            const today = all.filter((t) => !t.completed && dayDiff(t.due) === 0);
+            dialogueCustomReply = zh
+              ? '「今天你有 ' + today.length + ' 个任务。开启 API 后我可以给你更详细的简报。」'
+              : '"You have ' + today.length + ' tasks due today. Enable the API for a detailed briefing."';
+            setAnyaPortrait('normal');
+            renderDialogue();
+            const chatBar = $('#dialogueChatBar');
+            if (chatBar) chatBar.style.display = '';
+            return;
+          }
+          setAnyaPortrait('thinking');
+          dialogueCustomReply = zh ? '「马上为你生成今日简报…」' : '"Generating your briefing…"';
+          renderDialogue();
+          const chatBar = $('#dialogueChatBar');
+          if (chatBar) chatBar.style.display = '';
+          setTimeout(() => {
+            dialogueSendMessage(zh ? '请给我今天的任务简报' : 'Give me my daily briefing, please');
+          }, 400);
+          return;
+        }
+
+        if (action === 'schedule') {
+          if (!hasAPI) {
+            dialogueCustomReply = zh
+              ? '「想安排什么任务？跟我说就好，比如「每天早上7点健身」。」'
+              : '"What task would you like to schedule? Just tell me, e.g. \"morning gym at 7am.\""';
+          } else {
+            dialogueCustomReply = zh
+              ? '「想安排什么任务？告诉我标题和时间就行。」'
+              : '"What would you like to schedule? Just tell me the title and time."';
+          }
+          setAnyaPortrait('thinking');
+          renderDialogue();
+          const chatBar = $('#dialogueChatBar');
+          if (chatBar) chatBar.style.display = '';
+        }
+
+        if (action === 'chat') {
+          dialogueCustomReply = zh
+            ? '「好呀，聊点什么？跟我说说你的想法吧。」'
+            : '"Sure, let\'s chat! What\'s on your mind?"';
+          setAnyaPortrait('happy');
+          renderDialogue();
+          const chatBar = $('#dialogueChatBar');
+          if (chatBar) chatBar.style.display = '';
+        }
+      }
+
+      
+      let showHistory = false;
+
+      function toggleDialogueHistory() {
+        showHistory = !showHistory;
+        const speechEl = $('#dialogueSpeech');
+        const textEl = $('#dialogueText');
+        const optsEl = $('#dialogueOptions');
+        const arrowEl = $('#dialogueArrow');
+
+        if (showHistory) {
+          // Build history view inside a dedicated panel
+          const zh = currentLanguage === 'zh';
+          const items = agentMessages.filter(m => m.role !== 'typing').slice(-30);
+          const panel = document.getElementById('dialogueHistoryPanel');
+          if (panel) {
+            panel.innerHTML = items.map(m => '<div class="dialogue-history-item"><div class="dialogue-history-role">' +
+              (m.role === 'user' ? (zh ? '你' : 'You') : (zh ? '安雅' : 'Anya')) +
+              '</div>' + escapeHtml((m.text || '').replace(/\n/g, '<br>')) + '</div>').join('');
+            panel.classList.remove('task-field-hidden');
+          }
+          // Toggle: hide speech, show history
+          if (speechEl) speechEl.querySelector('.dialogue-speech-inner').classList.add('task-field-hidden');
+          if (optsEl) optsEl.innerHTML = '';
+          if (arrowEl) arrowEl.style.display = 'none';
+          dialogueStopTimer();
+        } else {
+          // Hide history, show speech
+          const panel = document.getElementById('dialogueHistoryPanel');
+          if (panel) panel.classList.add('task-field-hidden');
+          if (speechEl) speechEl.querySelector('.dialogue-speech-inner').classList.remove('task-field-hidden');
+        }
       }
 
       function openDialogue() {
@@ -225,7 +328,7 @@
             dialogueCustomReply += data.content;
             dialogueCharIdx = dialogueCustomReply.length;
             const textEl = $('#dialogueText');
-            if (textEl) textEl.innerHTML = escapeHtml(dialogueCustomReply) + '<span class="cursor">_</span>';
+            if (textEl) textEl.innerHTML = cleanAnyaReply(dialogueCustomReply) + '<span class="cursor">_</span>';
             $('#dialogueArrow').style.display = 'none';
             $('#dialogueOptions').innerHTML = '';
           }

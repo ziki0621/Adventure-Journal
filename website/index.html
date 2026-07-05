@@ -76,8 +76,8 @@
                 </div>
               </div>
               <div class="top-actions">
-                <button class="add-quest-button" type="button" id="openAdd" aria-label="New Quest" title="New Quest">
-                  <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg>
+                <button class="anya-top-btn" type="button" id="openAnya" aria-label="Open Anya" title="安雅 AI 向导">
+                  <img src="assets/anya-normal.png" alt="安雅" />
                 </button>
               </div>
             </header>
@@ -107,6 +107,7 @@
                                 <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg>
                               </div>
                             </div>
+                            <div class="wire-inner dialogue-history-panel task-field-hidden" id="dialogueHistoryPanel"></div>
                           </div>
                         </div>
                       </div>
@@ -118,6 +119,7 @@
                       <span class="agent-status-dot"></span>
                       <span class="agent-status-label">ONLINE</span>
                     </div>
+                    <button class="agent-history-btn" type="button" id="dialogueHistoryBtn" title="View history">☰</button>
                     <button class="agent-clear-btn" type="button" id="dialogueClearBtn" title="Clear conversation">Clear</button>
                     <div class="wire field dialogue-chat-input"><div class="wire-inner"><input id="dialogueInput" placeholder="和安雅说点什么..." autocomplete="off" /></div></div>
                     <button class="chamfer dialogue-chat-send" type="button" id="dialogueSend">
@@ -228,6 +230,8 @@
                 <button class="language-option" type="button" id="saveAgentSettings">Save Agent API</button>
               </div>
             </div>
+            <div class="qb-section-divider"><span>数据</span></div>
+            <button class="language-option" type="button" id="exportDataBtn">导出全部数据 (JSON)</button>
           </div>
         </div>
       </section>

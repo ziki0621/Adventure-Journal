@@ -26,10 +26,6 @@
         return messages[currentLanguage]?.[key] || messages.en[key] || key;
       }
 
-      function priorityLabel(priority) {
-        return tr(`priority.${priority}`);
-      }
-
       function recurrenceLabel(value) {
         return tr(`recurrence.${value}`) || value;
       }
@@ -71,12 +67,6 @@
         return tr(`type.${type}`) || type;
       }
 
-      function priorityTag(priority) {
-        if (priority === 'High') return 'danger';
-        if (priority === 'Low') return '';
-        return 'brass';
-      }
-
       function dueLabel(task) {
         const diff = dayDiff(task.due);
         if (diff < 0) return currentLanguage === 'zh' ? `${Math.abs(diff)}${tr('due.overdue')}` : `${Math.abs(diff)} ${tr('due.overdue')}`;
@@ -100,7 +90,7 @@
       function renderSelect(select, options, value) {
         select.innerHTML = options.map((option) => {
           const val = typeof option === 'string' ? option : option.value;
-          const label = typeof option === 'string' ? priorityLabel(option) : tr(option.labelKey);
+          const label = typeof option === 'string' ? option : tr(option.labelKey);
           return `<option value="${val}">${label}</option>`;
         }).join('');
         select.value = value;
@@ -108,7 +98,7 @@
       function renderSelectOptions(options, selected) {
         return options.map((opt) => {
           const val = typeof opt === 'string' ? opt : opt.value;
-          const label = typeof opt === 'string' ? priorityLabel(opt) : tr(opt.labelKey);
+          const label = typeof opt === 'string' ? opt : tr(opt.labelKey);
           return `<option value="${val}"${val === selected ? ' selected' : ''}>${label}</option>`;
         }).join('');
       }

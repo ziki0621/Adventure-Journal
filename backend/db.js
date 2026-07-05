@@ -43,6 +43,7 @@ function migrate() {
   d.run('CREATE TABLE IF NOT EXISTS tasks (id INTEGER PRIMARY KEY, type TEXT NOT NULL DEFAULT \'daily\', title TEXT NOT NULL, desc TEXT DEFAULT \'\', due TEXT NOT NULL, priority TEXT DEFAULT \'Med\', line TEXT DEFAULT \'Independent\', completed INTEGER DEFAULT 0, recurrence TEXT, start TEXT, end TEXT, streak INTEGER DEFAULT 0)');
   ensureColumn('tasks', 'start_time', 'TEXT');
   ensureColumn('tasks', 'end_time', 'TEXT');
+  ensureColumn('tasks', 'archived', 'INTEGER DEFAULT 0');
   d.run('CREATE TABLE IF NOT EXISTS quest_books (id INTEGER PRIMARY KEY, name TEXT NOT NULL, created_at TEXT DEFAULT (datetime(\'now\')))');
   ensureColumn('quest_books', 'start', 'TEXT');
   ensureColumn('quest_books', 'end', 'TEXT');
@@ -53,15 +54,19 @@ function migrate() {
   ensureColumn('subtasks', 'desc', "TEXT DEFAULT ''");
   ensureColumn('subtasks', 'start_time', 'TEXT');
   ensureColumn('subtasks', 'end_time', 'TEXT');
+  ensureColumn('subtasks', 'archived', 'INTEGER DEFAULT 0');
   d.run('CREATE TABLE IF NOT EXISTS independent_quests (id INTEGER PRIMARY KEY, book_id INTEGER REFERENCES quest_books(id) ON DELETE CASCADE, title TEXT NOT NULL, due TEXT NOT NULL, priority TEXT DEFAULT \'Med\', completed INTEGER DEFAULT 0, desc TEXT DEFAULT \'\')');
   ensureColumn('independent_quests', 'start', 'TEXT');
   ensureColumn('independent_quests', 'end', 'TEXT');
   ensureColumn('independent_quests', 'start_time', 'TEXT');
   ensureColumn('independent_quests', 'end_time', 'TEXT');
+  ensureColumn('independent_quests', 'archived', 'INTEGER DEFAULT 0');
   d.run('CREATE TABLE IF NOT EXISTS notes (id INTEGER PRIMARY KEY, title TEXT NOT NULL, body TEXT DEFAULT \'\', date TEXT NOT NULL, created_at TEXT DEFAULT (datetime(\'now\')))');
   d.run('CREATE TABLE IF NOT EXISTS day_notes (date TEXT PRIMARY KEY, content TEXT DEFAULT \'\')');
   d.run('CREATE TABLE IF NOT EXISTS agent_messages (id INTEGER PRIMARY KEY AUTOINCREMENT, role TEXT NOT NULL, text TEXT NOT NULL)');
   d.run('CREATE TABLE IF NOT EXISTS agent_config (id INTEGER PRIMARY KEY CHECK (id = 1), api_base TEXT DEFAULT \'\', api_key TEXT DEFAULT \'\', model TEXT DEFAULT \'\')');
+  d.run('CREATE TABLE IF NOT EXISTS daily_checks (id INTEGER PRIMARY KEY, task_id INTEGER NOT NULL, date TEXT NOT NULL, status TEXT NOT NULL DEFAULT \'pending\', completed_at TEXT)');
+  // Unique constraint handled by app logic — sql.js doesn't support CREATE UNIQUE INDEX easily
   if (!queryOne('SELECT id FROM agent_config WHERE id = 1')) d.run('INSERT INTO agent_config (id, api_base, api_key, model) VALUES (1, \'\', \'\', \'\')');
   // Seed data is now managed by seed.js — no automatic inserts here.
   saveDb();
@@ -76,17 +81,17 @@ function ensureColumn(table, column, definition) {
 function getAllTasks() { return syncQueryAll('SELECT * FROM tasks ORDER BY id ASC').map(rowToTask); }
 function createTask(data) {
   const id = data.id || Date.now();
-  run('INSERT INTO tasks (id,type,title,desc,due,priority,line,completed,recurrence,start,end,streak,start_time,end_time) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)',[id,data.type,data.title,data.desc||'',data.due,data.priority||'Low',data.line||'Independent',data.completed?1:0,data.recurrence||null,data.start||null,data.end||null,data.streak||0,data.start_time||'',data.end_time||'']);
+  run('INSERT INTO tasks (id,type,title,desc,due,priority,line,completed,recurrence,start,end,streak,start_time,end_time,archived) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',[id,data.type,data.title,data.desc||'',data.due,data.priority||'Low',data.line||'Independent',data.completed?1:0,data.recurrence||null,data.start||null,data.end||null,data.streak||0,data.start_time||'',data.end_time||'',data.archived?1:0]);
   saveDb(); return queryOne('SELECT * FROM tasks WHERE id = ?', [id]);
 }
 function updateTask(id, data) {
   const e = queryOne('SELECT * FROM tasks WHERE id = ?', [id]); if (!e) return null;
   const m = { ...rowToTask(e), ...data };
-  run('UPDATE tasks SET type=?,title=?,desc=?,due=?,priority=?,line=?,completed=?,recurrence=?,start=?,end=?,streak=?,start_time=?,end_time=? WHERE id=?',[m.type,m.title,m.desc||'',m.due,m.priority,m.line,m.completed?1:0,m.recurrence||null,m.start||null,m.end||null,m.streak||0,m.start_time||'',m.end_time||'',id]);
+  run('UPDATE tasks SET type=?,title=?,desc=?,due=?,priority=?,line=?,completed=?,recurrence=?,start=?,end=?,streak=?,start_time=?,end_time=?,archived=? WHERE id=?',[m.type,m.title,m.desc||'',m.due,m.priority,m.line,m.completed?1:0,m.recurrence||null,m.start||null,m.end||null,m.streak||0,m.start_time||'',m.end_time||'',m.archived?1:0,id]);
   saveDb(); return queryOne('SELECT * FROM tasks WHERE id = ?', [id]);
 }
 function deleteTask(id) { run('DELETE FROM tasks WHERE id = ?', [id]); saveDb(); return true; }
-function replaceAllTasks(arr) { run('BEGIN TRANSACTION'); try { run('DELETE FROM tasks'); arr.forEach((t) => run('INSERT INTO tasks (id,type,title,desc,due,priority,line,completed,recurrence,start,end,streak,start_time,end_time) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)',[t.id,t.type,t.title,t.desc||'',t.due,t.priority||'Med',t.line||'Independent',t.completed?1:0,t.recurrence||null,t.start||null,t.end||null,t.streak||0,t.start_time||'',t.end_time||''])); run('COMMIT'); saveDb(); } catch (e) { run('ROLLBACK'); throw e; } }
+function replaceAllTasks(arr) { run('BEGIN TRANSACTION'); try { run('DELETE FROM tasks'); arr.forEach((t) => run('INSERT INTO tasks (id,type,title,desc,due,priority,line,completed,recurrence,start,end,streak,start_time,end_time,archived) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',[t.id,t.type,t.title,t.desc||'',t.due,t.priority||'Med',t.line||'Independent',t.completed?1:0,t.recurrence||null,t.start||null,t.end||null,t.streak||0,t.start_time||'',t.end_time||'',t.archived?1:0])); run('COMMIT'); saveDb(); } catch (e) { run('ROLLBACK'); throw e; } }
 
 // ── Quest Books ──
 function getAllQuestBooks() {
@@ -104,8 +109,8 @@ function createQuestBook(data) {
     run('INSERT INTO quest_lines (id, book_id, title) VALUES (?, ?, ?)', [lid, bid, l.title]);
     (l.subtasks || []).forEach((s, si) => {
       run(
-        'INSERT INTO subtasks (id, line_id, title, due, completed, start, end, desc, start_time, end_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [s.id || (bid + li * 100 + si + 10), lid, s.title, s.due, s.completed ? 1 : 0, s.start || null, s.end || null, s.desc || '', s.start_time || '', s.end_time || '']
+        'INSERT INTO subtasks (id, line_id, title, due, completed, start, end, desc, start_time, end_time, archived) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [s.id || (bid + li * 100 + si + 10), lid, s.title, s.due, s.completed ? 1 : 0, s.start || null, s.end || null, s.desc || '', s.start_time || '', s.end_time || '', s.archived ? 1 : 0]
       );
     });
   });
@@ -120,8 +125,8 @@ function updateQuestBook(id, data) {
     run('INSERT INTO quest_lines (id, book_id, title) VALUES (?, ?, ?)', [lid, id, l.title]);
     (l.subtasks || []).forEach((s, si) => {
       run(
-        'INSERT INTO subtasks (id, line_id, title, due, completed, start, end, desc, start_time, end_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [s.id || (id * 1000 + li * 100 + si + 10), lid, s.title, s.due, s.completed ? 1 : 0, s.start || null, s.end || null, s.desc || '', s.start_time || '', s.end_time || '']
+        'INSERT INTO subtasks (id, line_id, title, due, completed, start, end, desc, start_time, end_time, archived) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [s.id || (id * 1000 + li * 100 + si + 10), lid, s.title, s.due, s.completed ? 1 : 0, s.start || null, s.end || null, s.desc || '', s.start_time || '', s.end_time || '', s.archived ? 1 : 0]
       );
     });
   });
@@ -137,7 +142,7 @@ function replaceAllQuestBooks(arr) { run('BEGIN TRANSACTION'); try { run('DELETE
 function insertIndependentQuest(bookId, iq, fallbackId) {
   const due = iq.start || iq.due || new Date().toISOString().slice(0, 10);
   run(
-    'INSERT INTO independent_quests (id, book_id, title, due, priority, completed, desc, start, end, start_time, end_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    'INSERT INTO independent_quests (id, book_id, title, due, priority, completed, desc, start, end, start_time, end_time, archived) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
     [
       fallbackId,
       bookId,
@@ -150,6 +155,7 @@ function insertIndependentQuest(bookId, iq, fallbackId) {
       iq.end || null,
       iq.start_time || '',
       iq.end_time || '',
+      iq.archived ? 1 : 0,
     ]
   );
 }
@@ -184,9 +190,51 @@ function setAgentConfig(data) {
 }
 
 // ── Helpers ──
-function rowToTask(row) { return { id: row.id, type: row.type, title: row.title, desc: row.desc, due: row.due, priority: row.priority, line: row.line, completed: !!row.completed, recurrence: row.recurrence, start: row.start, end: row.end, streak: row.streak, start_time: row.start_time || '', end_time: row.end_time || '' }; }
+function rowToTask(row) { return { id: row.id, type: row.type, title: row.title, desc: row.desc, due: row.due, priority: row.priority, line: row.line, completed: !!row.completed, archived: !!row.archived, recurrence: row.recurrence, start: row.start, end: row.end, streak: row.streak, start_time: row.start_time || '', end_time: row.end_time || '' }; }
 
 // ── Time-slot conflict check ──
+function archiveTask(id) { return updateTask(id, { archived: true }); }
+function unarchiveTask(id) { return updateTask(id, { archived: false }); }
+
+// ── Daily Checks ──
+function ensureDailyCheck(taskId, date) {
+  const existing = queryOne('SELECT * FROM daily_checks WHERE task_id = ? AND date = ?', [taskId, date]);
+  if (!existing) {
+    run('INSERT INTO daily_checks (task_id, date, status) VALUES (?, ?, ?)', [taskId, date, 'pending']);
+    saveDb();
+  }
+}
+function markOverdueChecks(taskId, today) {
+  run("UPDATE daily_checks SET status = 'missed' WHERE task_id = ? AND date < ? AND status = 'pending'", [taskId, today]);
+  saveDb();
+}
+function toggleDailyCheck(taskId, date) {
+  const existing = queryOne('SELECT * FROM daily_checks WHERE task_id = ? AND date = ?', [taskId, date]);
+  if (!existing) { ensureDailyCheck(taskId, date); return { taskId, date, status: 'done' }; }
+  const newStatus = existing.status === 'done' ? 'pending' : 'done';
+  const completedAt = newStatus === 'done' ? new Date().toISOString() : null;
+  run('UPDATE daily_checks SET status = ?, completed_at = ? WHERE id = ?', [newStatus, completedAt, existing.id]);
+  saveDb();
+  return { taskId, date, status: newStatus };
+}
+function getDailyChecks(taskId) {
+  return syncQueryAll('SELECT * FROM daily_checks WHERE task_id = ? ORDER BY date DESC', [taskId]);
+}
+function getTodayDailyChecks(date) {
+  return syncQueryAll('SELECT * FROM daily_checks WHERE date = ?', [date]);
+}
+function getDailyStreak(taskId) {
+  return syncQueryAll("SELECT COUNT(*) as cnt FROM daily_checks WHERE task_id = ? AND status = 'done'", [taskId])[0]?.cnt || 0;
+}
+function autoResetDailyTasks(today) {
+  const dailyTasks = syncQueryAll("SELECT * FROM tasks WHERE type = 'daily'");
+  for (const task of dailyTasks) {
+    markOverdueChecks(task.id, today);
+    ensureDailyCheck(task.id, today);
+  }
+  saveDb();
+}
+
 function checkTimeConflict(due, start_time, end_time, excludeId) {
   if (!start_time || !end_time) return null; // no time set = no conflict
   const all = getAllTasks();
@@ -209,5 +257,6 @@ module.exports = {
   getDayNote, getAllDayNotes, setDayNote,
   getAgentMessages, addAgentMessage, clearAgentMessages,
   getAgentConfig, setAgentConfig,
-  checkTimeConflict,
+  checkTimeConflict, archiveTask, unarchiveTask,
+  ensureDailyCheck, markOverdueChecks, toggleDailyCheck, getDailyChecks, getTodayDailyChecks, getDailyStreak, autoResetDailyTasks,
 };

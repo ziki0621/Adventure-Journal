@@ -11,22 +11,117 @@
         if (!control) return;
         const action = control.dataset.action;
         const id = Number(control.dataset.id);
+
+        // Check if this is a quest book item (flattened into Today view)
+        const qbFlat = flattenQuestBooks();
+        const qbItem = qbFlat.find((t) => t.id === id);
+
+        // Archive/unarchive
+        if (action === 'archive') {
+          if (qbItem) {
+            // Quest book item: set archived flag directly on the item
+            const book = questBooks.find((b) => b.id === qbItem.bookId);
+            if (book) {
+              if (qbItem._source === 'subtask') {
+                const line = book.questLines.find((l) => l.id === qbItem.questLineId);
+                if (line) line.subtasks = line.subtasks.map((s) => s.id === id ? { ...s, archived: true } : s);
+              } else {
+                book.independentQuests = book.independentQuests.map((iq) => iq.id === id ? { ...iq, archived: true } : iq);
+              }
+              saveQuestBooks();
+            }
+          } else {
+            const task = tasks.find((t) => t.id === id);
+            if (task && !confirm((currentLanguage === 'zh' ? '确定归档「' : 'Archive \"') + task.title + '\"?')) return;
+            tasks = tasks.map((task) => task.id === id ? { ...task, archived: true } : task);
+            apiArchiveTask(id);
+            if (selectedTaskId === id) selectedTaskId = null;
+          }
+          renderView();
+          return;
+        }
+        if (action === 'unarchive') {
+          if (qbItem) {
+            const book = questBooks.find((b) => b.id === qbItem.bookId);
+            if (book) {
+              if (qbItem._source === 'subtask') {
+                const line = book.questLines.find((l) => l.id === qbItem.questLineId);
+                if (line) line.subtasks = line.subtasks.map((s) => s.id === id ? { ...s, archived: false } : s);
+              } else {
+                book.independentQuests = book.independentQuests.map((iq) => iq.id === id ? { ...iq, archived: false } : iq);
+              }
+              saveQuestBooks();
+            }
+          } else {
+            tasks = tasks.map((task) => task.id === id ? { ...task, archived: false } : task);
+            apiUnarchiveTask(id);
+          }
+          renderView();
+          return;
+        }
+
+        if (qbItem) {
+          const book = questBooks.find((b) => b.id === qbItem.bookId);
+          if (!book) return;
+          if (action === 'toggle') {
+            if (qbItem._source === 'subtask') {
+              const line = book.questLines.find((l) => l.id === qbItem.questLineId);
+              if (line) line.subtasks = line.subtasks.map((s) => s.id === id ? { ...s, completed: !s.completed } : s);
+              apiToggleSubtask(qbItem.bookId, qbItem.questLineId, id);
+            } else {
+              book.independentQuests = book.independentQuests.map((iq) => iq.id === id ? { ...iq, completed: !iq.completed } : iq);
+              apiToggleIndependentQuest(qbItem.bookId, id);
+            }
+          }
+          if (action === 'delete') {
+            if (!confirm((currentLanguage === 'zh' ? '确定删除此项？' : 'Delete this item?'))) return;
+            if (qbItem._source === 'subtask') {
+              const line = book.questLines.find((l) => l.id === qbItem.questLineId);
+              if (line) line.subtasks = line.subtasks.filter((s) => s.id !== id);
+              apiDeleteSubtask(qbItem.bookId, qbItem.questLineId, id);
+            } else {
+              book.independentQuests = book.independentQuests.filter((iq) => iq.id !== id);
+              apiDeleteIndependentQuest(qbItem.bookId, id);
+            }
+            if (selectedTaskId === id) selectedTaskId = null;
+          }
+          saveQuestBooks();
+          renderView();
+          return;
+        }
+
         if (action === 'toggle') {
-          // Optimistic update: mutate local array, then fire per-item API
+          const task = tasks.find((t) => t.id === id);
+          if (task && task.type === 'daily') {
+            const today = todayOffset(0);
+            // Toggle via daily_checks
+            apiToggleDailyCheck(id, today).then((r) => {
+              if (!dailyChecks[id]) dailyChecks[id] = [];
+              const idx = dailyChecks[id].findIndex((c) => c.date === today);
+              if (idx >= 0) dailyChecks[id][idx].status = r.status;
+              else dailyChecks[id].push({ task_id: id, date: today, status: r.status });
+              if (r.streak !== undefined) {
+                tasks = tasks.map((t) => t.id === id ? { ...t, completed: r.status === 'done', streak: r.streak } : t);
+              }
+              renderView();
+            });
+            return;
+          }
           tasks = tasks.map((task) => {
             if (task.id !== id) return task;
-            // streak: checking → +1, unchecking → −1 (min 0), non-daily unchanged
             const newStreak = task.type === 'daily'
               ? (task.completed ? Math.max(0, (task.streak || 1) - 1) : (task.streak || 0) + 1)
               : task.streak;
             return { ...task, completed: !task.completed, streak: newStreak };
           });
-          apiToggleTask(id);  // per-item PATCH (was: full saveTasks())
+          apiToggleTask(id);
         }
         if (action === 'delete') {
+          const task = tasks.find((t) => t.id === id);
+          if (task && !confirm((currentLanguage === 'zh' ? '确定删除「' : 'Delete "') + task.title + '"?')) return;
           tasks = tasks.filter((task) => task.id !== id);
           if (selectedTaskId === id) selectedTaskId = null;
-          apiDeleteTask(id);  // per-item DELETE (was: full saveTasks())
+          apiDeleteTask(id);
         }
         if (action === 'edit') {
           openEditor(id);
@@ -52,8 +147,10 @@
             line.subtasks = line.subtasks.map((s) => s.id === subId ? { ...s, completed: !s.completed } : s);
             apiToggleSubtask(bookId, lineId, subId);
           } else {
+            if (confirm((currentLanguage === 'zh' ? '确定删除此子任务？' : 'Delete this subtask?'))) {
             line.subtasks = line.subtasks.filter((s) => s.id !== subId);
             apiDeleteSubtask(bookId, lineId, subId);
+            } else { return false; }
           }
           renderView();
           return true;
@@ -64,8 +161,10 @@
             book.independentQuests = book.independentQuests.map((iq) => iq.id === iqId ? { ...iq, completed: !iq.completed } : iq);
             apiToggleIndependentQuest(bookId, iqId);
           } else {
+            if (confirm((currentLanguage === 'zh' ? '确定删除此独立任务？' : 'Delete this independent quest?'))) {
             book.independentQuests = book.independentQuests.filter((iq) => iq.id !== iqId);
             apiDeleteIndependentQuest(bookId, iqId);
+            } else { return false; }
           }
           renderView();
           return true;
@@ -83,6 +182,8 @@
           return true;
         }
         if (action === 'delete') {
+          const note = notes.find((n) => n.id === id);
+          if (note && !confirm((currentLanguage === 'zh' ? '确定删除「' : 'Delete "') + note.title + '"?')) return;
           notes = notes.filter((note) => note.id !== id);
           apiDeleteNote(id);
           renderView();
@@ -110,21 +211,6 @@
             dialogueStopTimer();
             switchView(nav.dataset.view);
             setSidebar(false);
-            return;
-          }
-          const notesFilterTab = event.target.closest('[data-notes-filter]');
-          if (notesFilterTab) {
-            notesFilter = notesFilterTab.dataset.notesFilter;
-            renderNotes();
-            return;
-          }
-          const diaryDateNav = event.target.closest('[data-diary-date]');
-          if (diaryDateNav) {
-            const delta = Number(diaryDateNav.dataset.diaryDate);
-            if (!/^\d{4}-\d{2}-\d{2}$/.test(diaryDate)) diaryDate = todayOffset(0);
-            diaryDate = todayOffset(dayDiff(diaryDate) + delta);
-            notesFilter = 'diary';
-            renderNotes();
             return;
           }
           // Mini-calendar: month navigation
@@ -341,26 +427,6 @@
             }
             return;
           }
-          const scratch = event.target.closest('[data-scratchpad]');
-          if (scratch) {
-            localStorage.setItem('adventure-scratchpad-v1', scratch.value);
-            return;
-          }
-          // Auto-save diary as draft so tab switching doesn't lose content
-          const diary = event.target.closest('[data-diary-entry]');
-          if (diary) {
-            const countEl = diary.closest('.wire-inner')?.querySelector('.notes-char-count');
-            if (countEl) countEl.textContent = diary.value.length + ' CHARS';
-            // If a saved diary note exists, auto-save to note body; else to localStorage draft
-            const saved = notes.find((n) => n.date === diaryDate && /日记|Diary/i.test(n.title));
-            if (saved && diary.value.trim()) {
-              saved.body = diary.value;
-              apiUpdateNote(saved.id, { title: saved.title, body: diary.value, date: diaryDate });
-            } else {
-              localStorage.setItem('adventure-diary-draft', diary.value);
-            }
-            return;
-          }
         });
 
         $('#viewContent').addEventListener('dblclick', (event) => {
@@ -376,40 +442,9 @@
               const flat = flattenQuestBooks();
               const qbItem = flat.find((t) => t.id === id);
               if (qbItem && qbItem.bookId) {
-                openQuestBookEditor(qbItem.bookId);
+                openQBItemEditor(qbItem.bookId, qbItem._source, qbItem.questLineId || null, id);
               }
             }
-            return;
-          }
-        });
-
-        $('#viewContent').addEventListener('click', (event) => {
-          const diaryRow = event.target.closest('[data-diary-entry-row]');
-          if (diaryRow && !event.target.closest('button')) {
-            const d = diaryRow.dataset.diaryDate;
-            if (/^\d{4}-\d{2}-\d{2}$/.test(d)) diaryDate = d;
-            notesFilter = 'diary';
-            renderNotes();
-            return;
-          }
-          const saveDiary = event.target.closest('#saveDiaryEntry');
-          if (saveDiary) {
-            const textarea = document.getElementById('diaryTextarea');
-            if (!textarea) return;
-            const body = textarea.value.trim();
-            if (!body) return;
-            localStorage.removeItem('adventure-diary-draft');
-            const title = diaryDate + ' ' + (currentLanguage === 'zh' ? '日记' : 'Diary');
-            const existing = notes.find((n) => n.date === diaryDate && /日记|Diary/i.test(n.title));
-            if (existing) {
-              notes = notes.map((n) => n.id === existing.id ? { ...n, title, body } : n);
-              apiUpdateNote(existing.id, { title, body, date: diaryDate });
-            } else {
-              const newNote = { id: Date.now(), title, body, date: diaryDate };
-              notes.unshift(newNote);
-              apiCreateNote(newNote);
-            }
-            renderNotes();
             return;
           }
         });
@@ -417,11 +452,6 @@
         const qAdd = $('#quickAdd'); if (qAdd) qAdd.addEventListener('click', addTaskFromQuick);
         const qTitle = $('#quickTitle'); if (qTitle) qTitle.addEventListener('keydown', (event) => {
           if (event.key === 'Enter') addTaskFromQuick();
-        });
-        $('#openAdd').addEventListener('click', () => {
-          if (activeView === 'notes') openNoteEditor(null);
-          else if (activeView === 'questbook') openQuestBookEditor(null);
-          else openEditor(null);
         });
         $('#menuToggle').addEventListener('click', toggleSidebar);
         $('#sidebarScrim').addEventListener('click', () => setSidebar(false));
@@ -437,7 +467,7 @@
         $('#qbAddIndependentBtn').addEventListener('click', () => {
           const list = readQBIndependentQuests();
           const tempId = Date.now();
-          list.push({ id: tempId, title: '', due: todayOffset(0), priority: 'Med', completed: false });
+          list.push({ id: tempId, title: '', due: todayOffset(0), completed: false });
           renderQBIndependentQuests(list);
           if (window._editingQBId) {
             questBooks = questBooks.map((b) => b.id === window._editingQBId ? { ...b, questLines: readQBQuestLines(), independentQuests: list } : b);
@@ -462,6 +492,7 @@
         $('#deleteTaskFromEditor').addEventListener('click', deleteTaskFromEditor);
         $('#closeNoteModal').addEventListener('click', closeNoteEditor);
         $('#saveNote').addEventListener('click', saveNoteEditor);
+        const exportBtn = $('#exportDataBtn'); if (exportBtn) exportBtn.addEventListener('click', exportAllData);
         $('#openSettings').addEventListener('click', () => {
           $('#agentApiBase').value = agentConfig.apiBase || '';
           $('#agentApiKey').value = '';
@@ -481,6 +512,7 @@
         $('#dialogueSpeech').addEventListener('click', dialogueHandleNext);
         $('#dialogueClose').addEventListener('click', closeDialogue);
         $('#dialogueClearBtn').addEventListener('click', clearDialogueHistory);
+        $('#dialogueHistoryBtn').addEventListener('click', toggleDialogueHistory);
         $('#dialogueSend').addEventListener('click', () => {
           const text = $('#dialogueInput').value.trim();
           if (!text) return;
@@ -498,10 +530,9 @@
         });
         // Delegated clicks for dynamic dialogue elements
         document.addEventListener('click', (event) => {
-          const optYes = event.target.closest('#dialogueOptionYes');
-          if (optYes) { dialogueHandleOption('yes'); return; }
-          const optNo = event.target.closest('#dialogueOptionNo');
-          if (optNo) { dialogueHandleOption('no'); return; }
+          // Quick action buttons
+          const quickBtn = event.target.closest('[data-quick-action]');
+          if (quickBtn) { dialogueHandleQuickAction(quickBtn.dataset.quickAction); return; }
         });
         $('#taskModal').addEventListener('click', (event) => {
           if (event.target.id === 'taskModal') closeEditor();
@@ -535,6 +566,7 @@
           loadQuestBooks().then((data) => { if (data.length) questBooks = data; }),
           loadNotes().then((data) => { if (data.length) notes = data; }),
           loadDayNotes().then((data) => { if (Object.keys(data).length) dayNotes = data; }),
+          autoResetDailyTasks().then((data) => { if (data.checks) dailyChecks = {}; (data.checks||[]).forEach(c => { if(!dailyChecks[c.task_id])dailyChecks[c.task_id]=[]; dailyChecks[c.task_id].push(c); }); }),
           loadAgentMessages().then((data) => { if (data.length) { agentMessages = data; agentSaveIndex = data.length; } }),
           loadAgentConfig().then((data) => { if (data.apiBase) agentConfig = data; }),
         ]).then(() => {

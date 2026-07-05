@@ -80,9 +80,6 @@
                 <div class="dashboard-percent">${percent}% ${todayStatusText('completion')}</div>
               </div>
             </div>
-            <button class="agent-slot" type="button" id="openAnya" aria-label="${todayStatusText('agentName')}">
-              <img class="agent-portrait" src="assets/anya-normal.png" alt="${todayStatusText('agentName')}" />
-            </button>
             ${renderStickyNote()}
           </div>
         `;
@@ -162,7 +159,15 @@
           side: allEntries.filter((t) => t.type === 'side').length,
         };
         const scoped = sortByDue(todayFilteredTasks());
-        const overdue = scoped.filter((task) => taskTodayBucket(task) === 'overdue');
+        const overdue = scoped.filter((task) => {
+          if (taskTodayBucket(task) !== 'overdue') return false;
+          // For daily tasks, only show as overdue if there's an actual missed check
+          if (task.type === 'daily') {
+            const checks = dailyChecks[task.id] || [];
+            return checks.some((c) => c.status === 'missed');
+          }
+          return true;
+        });
         const today = scoped.filter((task) => taskTodayBucket(task) === 'today');
 
         const isToday = selDate === appToday;
@@ -176,16 +181,16 @@
                   ${isToday ? `
                   <section class="list-section">
                     <div class="section-head"><h3 class="serif">${tr('section.progress')}</h3><span>${today.length} ${tr('unit.contracts')}</span></div>
-                    ${renderSplitTaskList(today, tr('empty.today'))}
+                    ${renderSplitTaskList(today, tr('empty.today'), {hideDailyDates: true})}
                   </section>` : `
                   <section class="list-section">
                     <div class="section-head"><h3 class="serif">${formatDate(selDate)}</h3><span>${today.length} ${tr('unit.contracts')}</span></div>
-                    ${renderSplitTaskList(today, tr('empty.today'))}
+                    ${renderSplitTaskList(today, tr('empty.today'), {hideDailyDates: true})}
                   </section>`}
-                  ${overdue.length ? `
+                  ${isToday && overdue.length ? `
                   <section class="list-section">
                     <div class="section-head"><h3 class="serif">${tr('section.overdue')}</h3><span>${overdue.length} ${tr('unit.contracts')}</span></div>
-                    ${renderOverdueTaskList(overdue, tr('empty.overdue'))}
+                    ${renderOverdueTaskList(overdue, tr('empty.overdue'), {hideDailyDates: true})}
                   </section>` : ''}
                 </div>
               </div>
@@ -197,11 +202,12 @@
       function renderTypedView(type, title, eyebrow, subtitle) {
         setHeader(title, eyebrow, subtitle);
         const list = sortByDue(tasks.filter((task) => task.type === type));
-        const active = list.filter((task) => !task.completed);
-        const done = list.filter((task) => task.completed);
-        const counts = { all: list.length, active: active.length, archive: done.length };
+        const active = list.filter((task) => !task.completed && !task.archived);
+        const done = list.filter((task) => task.completed && !task.archived);
+        const archivedTasks = list.filter((task) => task.archived);
+        const counts = { all: list.length, active: active.length, archive: archivedTasks.length };
         const activeFilter = typeFilters[type] || 'all';
-        const visible = activeFilter === 'active' ? active : activeFilter === 'archive' ? done : list;
+        const visible = activeFilter === 'active' ? active : activeFilter === 'archive' ? archivedTasks : list.filter((t) => !t.archived);
         const sectionTitle = activeFilter === 'active' ? tr('section.active') : activeFilter === 'archive' ? tr('section.archive') : tr('tab.all');
         $('#viewContent').innerHTML = `
           <div class="library-layout">

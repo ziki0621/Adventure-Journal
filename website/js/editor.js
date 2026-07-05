@@ -100,7 +100,7 @@
       function renderSelectOptions(options, selected) {
         return options.map((opt) => {
           const val = typeof opt === 'string' ? opt : opt.value;
-          const label = typeof opt === 'string' ? priorityLabel(opt) : tr(opt.labelKey);
+          const label = typeof opt === 'string' ? opt : tr(opt.labelKey);
           return `<option value="${val}"${val === selected ? ' selected' : ''}>${label}</option>`;
         }).join('');
       }
@@ -174,7 +174,7 @@
           $('#qbStart').value = draft.start || draft.due || todayOffset(0);
           $('#qbEnd').value = draft.end || draft.due || todayOffset(7);
           renderQBQuestLines([]);
-          renderQBIndependentQuests([{ title: draft.title, due: draft.due, priority: draft.priority }]);
+          renderQBIndependentQuests([{ title: draft.title, due: draft.due }]);
           $('#qbModalTitle .text').textContent = tr('modal.newQuestbook');
           window._editingQBId = undefined;
           $('#questBookModal').classList.add('open');
