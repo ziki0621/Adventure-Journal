@@ -1,135 +1,8 @@
 # Adventure Journal（冒险书）
 
-一个带 AI Agent 能力的个人任务管理产品原型。
-
-它不是把普通 Todo 套上一层聊天框，而是尝试把「长期目标、重复习惯、一次性任务、每日记录」重新组织成更适合个人执行的结构：任务书、日常、支线、笔记。AI Agent 负责把用户的自然语言意图转成可执行的任务操作。
+> 羊皮纸复古风格的全栈桌面任务管理应用。搭载自建 AI Agent 引擎（10 工具注册表 + 多轮执行循环 + 原生 function calling）
 
 ---
-
-## 项目定位
-
-Adventure Journal 面向任务和目标都比较碎的人：学生、实习生、创作者、自由职业者，或者任何同时需要管理长期计划、日常习惯和临时事项的人。
-
-普通 Todo App 的问题是：它通常只提供一个线性列表。用户可以记录任务，但很难维护任务之间的层级、周期、上下文和进展。Adventure Journal 用 RPG 式的信息架构重新组织任务，让用户更容易知道：
-
-- 今天具体要做什么
-- 哪些任务属于长期目标
-- 哪些事情是每天重复维护的习惯
-- 哪些只是一次性的支线事项
-- 哪些笔记可以作为任务上下文被重新调用
-
-## 核心体验
-
-| 模块 | 产品含义 | 主要能力 |
-| --- | --- | --- |
-| Today | 每日执行面板 | 日历、今日任务、逾期任务、时间段任务、每日便签 |
-| Quest Book | 长期目标管理 | 任务书、任务线、子任务、独立任务、起止日期、时间轴 |
-| Daily | 重复习惯 | 每日打卡、自动重置、missed 状态、连续记录 |
-| Side | 一次性任务 | 临时事项、完成状态、归档 |
-| Journal | 上下文笔记 | 笔记创建、搜索、编辑、导出 |
-| Anya AI | AI Agent 助手 | 对话式创建任务、查询任务、更新任务、搜索笔记、今日简报 |
-
-## AI Agent 做了什么
-
-Anya AI 是项目中的内置 Agent。它不是只返回聊天文本，而是可以通过工具调用操作本地任务系统。
-
-典型流程：
-
-```text
-用户：帮我明天下午三点安排复习产品经理面试
-        ↓
-LLM 判断需要创建任务
-        ↓
-调用 createTask 工具，生成结构化草稿
-        ↓
-前端弹出任务编辑器
-        ↓
-用户确认后才写入数据库
-```
-
-这个设计刻意保留了「用户确认」步骤：AI 负责理解和转译意图，最终写入仍由用户确认，避免误操作直接污染任务数据。
-
-### Agent 能力
-
-- OpenAI 兼容 function calling：支持标准 `tools` / `tool_choice` / `tool_calls`
-- 兼容降级：当模型或接口不支持工具调用时，降级为文本 JSON 工具解析
-- 多轮工具执行循环：最多 5 轮调用，工具结果会回注到对话上下文
-- 工具参数校验：`validateAndCoerceParams()` 校验 required、enum、type
-- SSE 流式响应：前端通过 `/api/agent/chat` 接收工具结果和最终回复
-- 本地数据工具：任务、笔记、统计、任务书查询等能力通过工具注册表暴露
-
-当前工具列表：
-
-| 工具 | 用途 |
-| --- | --- |
-| `createTask` | 生成任务草稿，等待用户确认 |
-| `updateTask` | 更新任务标题、日期、描述、时间段 |
-| `deleteTask` | 删除任务 |
-| `toggleTask` | 切换任务完成状态 |
-| `listTasks` | 按类型、日期状态查询任务 |
-| `getTaskStats` | 获取任务统计 |
-| `updateTaskDesc` | 更新任务描述 |
-| `createNote` | 创建笔记 |
-| `searchNotes` | 搜索笔记 |
-| `listQuestBooks` | 查询任务书结构 |
-
-## 信息架构设计
-
-Adventure Journal 没有把所有事项都放进一个列表，而是把任务拆成四类对象：
-
-- **任务书（Quest Book）**：承载长期目标，例如一个项目、课程、作品集准备。任务书可以包含任务线、子任务和独立任务。
-- **日常（Daily）**：承载重复习惯，例如每天背单词、复盘、运动。它们完成后不会消失，而是进入每日打卡记录。
-- **支线（Side）**：承载一次性任务，例如买东西、交材料、临时安排。完成后可以归档。
-- **笔记（Journal）**：承载上下文、想法和记录，让 AI 可以通过搜索笔记辅助用户找回信息。
-
-这样的结构让产品不只是「记任务」，而是在帮助用户维护一个可执行的个人系统。
-
-## 技术实现
-
-```text
-Browser
-  ├─ static frontend: Vanilla JS + CSS
-  └─ fetch /api/*
-        ↓
-Node.js + Express
-  ├─ REST API: tasks / quest-books / notes / day-notes / daily-checks
-  ├─ Agent API: /api/agent/chat
-  └─ sql.js + SQLite file
-        ↓
-Local data store
-```
-
-### 前端
-
-- Vanilla JavaScript，按视图和职责拆分模块
-- 自定义复古羊皮纸视觉系统
-- Today、Quest Book、Daily、Side、Timeline、Journal 多视图工作台
-- 弹窗编辑器、任务书子项编辑、AI 对话窗口、SSE 流式渲染
-
-### 后端
-
-- Node.js + Express
-- sql.js 持久化 SQLite 数据
-- REST API 管理任务、任务书、笔记、每日便签和打卡状态
-- Agent 路由统一处理 LLM 请求、工具调用、结果回注和流式返回
-
-## 数据模型
-
-```text
-tasks
-  ├─ daily tasks → daily_checks
-  └─ side tasks  → completed / archived
-
-quest_books
-  ├─ quest_lines
-  │   └─ subtasks
-  └─ independent_quests
-
-notes
-day_notes
-agent_messages
-agent_config
-```
 
 ## 快速开始
 
@@ -140,18 +13,54 @@ npm install
 npm run dev
 ```
 
-打开：
+打开 `http://127.0.0.1:4173/` → 设置 → AI Agent API → 配置 LLM 接口即可启用安雅 AI。
 
-```text
-http://127.0.0.1:4173/
+## 架构
+
+```
+browser ─── fetch /api/* ─── Express ─── sql.js (WASM) ─── SQLite
+                │
+                └── POST /api/agent/chat (SSE) ─── LLM API ← service-side API key
 ```
 
-如需启用 AI Agent：
+- **前端**: Vanilla JS（12 模块）、CSS3、零框架
+- **后端**: Node.js + Express + SQLite（sql.js）
+- **AI Agent**: OpenAI 兼容 function calling、自动降级 JSON 解析
 
-1. 打开应用右下角「设置」
-2. 填入 OpenAI 兼容接口地址、API Key、模型名
-3. 打开 Anya AI 对话窗口
-4. 输入自然语言任务请求
+## 五视图工作台
+
+| 视图 | 功能 |
+|------|------|
+| **Today** | 微型日历 + 系统仪表盘 + 已安排 / 未设定双列任务面板 + 便签 |
+| **Quest Book** | 三级任务层级 + 动画时间轴 + 单任务编辑弹窗 + 时间段 |
+| **Daily** | 打卡追踪（daily_checks 表） + 逾期自动标记为 `missed` |
+| **Side** | 一次性支线任务 + 归档管理 |
+| **Journal** | 笔记卡片网格 + 新建/编辑/删除 + 导出 JSON |
+
+## AI Agent
+
+- **10 工具**: createTask（返回草稿）、deleteTask、listTasks、getTaskStats、searchNotes、updateTask、toggleTask、updateTaskDesc、createNote、listQuestBooks
+- **执行循环**: 最多 5 轮迭代，工具结果回注对话上下文
+- **原生 function calling**: 支持 OpenAI `tool_calls`，不支持的 API 自动降级为文本 JSON 解析
+- **参数校验**: `validateAndCoerceParams()` 检查 required / enum / type
+- **草稿确认**: createTask 只返回 draft 不写库，用户必须在编辑器确认
+- **快捷按钮**: 安排任务 / 今日简报 / 快速笔记 / 闲聊
+- **表情系统**: 7 个安雅表情根据对话内容自动切换
+- **主动提醒**: 任务时间段即将到达时弹出悬浮气泡
+
+## 数据模型
+
+```
+tasks (daily | side)
+  ├── daily  → daily_checks (date, status)
+  └── side   → completed / archived
+
+quest_books → quest_lines → subtasks
+                          → independent_quests
+notes
+day_notes
+agent_messages / agent_config
+```
 
 ## 项目结构
 
