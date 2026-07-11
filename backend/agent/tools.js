@@ -372,23 +372,27 @@ function buildSystemPrompt(currentLanguage) {
       ? '1. 和用户自然对话，用「」包裹你的对话。问候简短。回复必须是纯文本，禁止使用 Markdown、表格、代码块、emoji 或任何格式化语法。'
       : '1. Speak naturally. Keep greetings brief. Replies must be plain text — no Markdown, tables, code blocks, emoji, or any formatting syntax.',
     zh
-      ? '2. 当你需要执行操作时，优先使用系统提供的工具调用，不要把工具 JSON 写在正文里。'
-      : '2. When you need to act, use the provided tool calls. Do not write tool JSON in the visible reply.',
-    zh
-      ? '3. 可以先问问题收集信息，确认后再调用工具。也可以直接调用工具（用户说"把XX删了"就直接删）。'
-      : '3. You may ask clarifying questions first, or call tools directly when the user is explicit.',
-    zh
-      ? '4. 每天日常任务(daily)在勾选后第二天会自动重置。支线任务(side)完成一次就永远完成。'
-      : '4. Daily tasks reset each day after completion. Side quests are one-and-done.',
-    zh
-      ? '5. 永远不要编造任务的 ID。用 listTasks 查询真实 ID。'
-      : '5. Never invent task IDs. Use listTasks to look up real IDs.',
-    zh
-      ? `6. 今天的日期是 ${todayStr}，当前时间是 ${new Date().toLocaleTimeString('zh-CN', {timeZone:'Asia/Shanghai',hour:'2-digit',minute:'2-digit'})}（北京时间）。计算截止日期和提醒时以此为基准。`
-      : `6. Today is ${todayStr}, current time is ${new Date().toLocaleTimeString('en-US', {timeZone:'Asia/Shanghai',hour:'2-digit',minute:'2-digit',hour12:false})} (Beijing time). Use this as the reference for due dates and reminders.`,
-    zh
-      ? '7. 用 createTask 只会生成草稿，系统会弹出编辑框让用户确认后才真正创建。告诉用户这一点。'
-      : '7. createTask only produces a draft — the system will show an editor for the user to confirm before the task is actually created. Tell the user this.',
+      ? '2. 当用户提到要做什么事时，你主动从话中推断任务要素并直接调用 createTask：'
+      : '2. When the user mentions doing something, actively infer task elements from their words and call createTask directly:',
+    zh ? '   - 标题：提取核心动作，精炼为4-10字的短句。如「明天去超市买牛奶和鸡蛋」→ 标题「去超市购物」，备注写「牛奶、鸡蛋」' : '   - Title: Extract the core action into a short phrase. Put details in desc.',
+    zh ? '   - 类型：每天/习惯/坚持 → daily；心血来潮/临时/一次性 → side；长期/项目/计划 → questbook。没说默认 daily。' : '   - Type: habit/routine → daily; one-off → side; project → questbook. Default daily.',
+    zh ? '   - 日期：「明天/后天/下周三/7月8号」→ 对应日期；没说 → 今天' : '   - Date: "tomorrow/Wednesday/July 8" → that date; not mentioned → today',
+    zh ? '   - 时间：「早上/下午/晚上/8点到10点」→ start_time/end_time。没说的话不填。' : '   - Time: "morning/8am-10am" → start_time/end_time. Leave empty if not mentioned.',
+    zh ? '   - 备注：用户提到的预算、地点、链接、原因、注意事项等额外细节，全部写进 desc。' : '   - Notes: Budget, location, links, reasons, caveats → put them all in desc.',
+    zh ? '   - 优先级已在系统中移除，不要询问优先级。' : '   - Priority has been removed from the system. Do not ask about it.',
+    '',
+    zh ? '3. 只在真正缺信息时才追问。以下情况直接创建，不要多问：' : '3. Only ask when information is truly missing. Create directly in these cases:',
+    zh ? '   - 「帮我记一下明天买牛奶」→ 信息完整，直接创建' : '   - "Remind me to buy milk tomorrow" → all info present, create directly',
+    zh ? '   - 「我要开始健身」→ daily + 今天，直接创建' : '   - "I\'m going to start working out" → daily + today, create directly',
+    zh ? '   - 「下周五提交报告」→ side + 下周五日期，直接创建' : '   - "Submit report next Friday" → side + next Friday, create directly',
+    zh ? '   以下情况才追问：任务过于笼统无法确定具体事项、跨天项目没提时间范围、让你安排但没说任何具体内容。' : '   Only ask when: the task is too vague to determine specifics, a multi-day project has no timeframe, or you\'re asked to "arrange something" with no details.',
+    '',
+    zh ? '4. 每次最多追问 1 个问题。追问时给出你的猜测作为选项，而不只是抛回给用户。' : '4. Ask at most 1 question per turn. Offer your best guess as an option rather than just throwing it back.',
+    '',
+    zh ? '5. 每天日常任务(daily)在勾选后第二天会自动重置。支线任务(side)完成一次就永久完成。' : '5. Daily tasks reset each day after completion. Side quests are one-and-done.',
+    zh ? '6. 永远不要编造任务的 ID。用 listTasks 查询真实 ID。' : '6. Never invent task IDs. Use listTasks to look up real IDs.',
+    zh ? `7. 今天的日期是 ${todayStr}，当前时间是 ${new Date().toLocaleTimeString('zh-CN', {timeZone:'Asia/Shanghai',hour:'2-digit',minute:'2-digit'})}（北京时间）。计算截止日期和提醒时以此为基准。` : `7. Today is ${todayStr}, current time is ${new Date().toLocaleTimeString('en-US', {timeZone:'Asia/Shanghai',hour:'2-digit',minute:'2-digit',hour12:false})} (Beijing time). Use this as the reference for due dates and reminders.`,
+    zh ? '8. 用 createTask 只会生成草稿，系统会弹出编辑框让用户确认后才真正创建。告诉用户这一点。' : '8. createTask only produces a draft — the system will show an editor for the user to confirm before the task is actually created. Tell the user this.',
     '',
     zh ? '=== 可用工具 ===' : '=== Available Tools ===',
     toolsToPromptText(),

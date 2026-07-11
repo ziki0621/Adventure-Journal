@@ -194,17 +194,30 @@ router.post('/chat', async (req, res) => {
         const clean = stripToolCalls(replyText);
         conversation.push({ role: 'assistant', content: replyText });
 
-        // Stream the final reply character by character (simulated SSE streaming)
+        // Stream the final reply in batches (50ms intervals)
         res.write('data: ' + JSON.stringify({ type: 'reply_start' }) + '\n\n');
-        for (const char of clean) {
-          res.write('data: ' + JSON.stringify({ type: 'delta', content: char }) + '\n\n');
-        }
-        if (allToolResults.length > 0) {
-          res.write('data: ' + JSON.stringify({ type: 'tool_summary', count: allToolResults.length }) + '\n\n');
-        }
-        res.write('data: [DONE]\n\n');
-        res.end();
+        const chars = [...clean];
+        let batchIdx = 0;
+        const batchSize = 8;
+        const batchInterval = setInterval(() => {
+          if (batchIdx >= chars.length) { clearInterval(batchInterval); return; }
+          const batch = chars.slice(batchIdx, batchIdx + batchSize).join('');
+          res.write('data: ' + JSON.stringify({ type: 'delta', content: batch }) + '\n\n');
+          batchIdx += batchSize;
+        }, 50);
+        // Wait for batching to finish, then send DONE
+        const doneCheck = setInterval(() => {
+          if (batchIdx >= chars.length) {
+            clearInterval(doneCheck);
+            if (allToolResults.length > 0) {
+              res.write('data: ' + JSON.stringify({ type: 'tool_summary', count: allToolResults.length }) + '\n\n');
+            }
+            res.write('data: [DONE]\n\n');
+            res.end();
+          }
+        }, 60);
         return;
+
       }
 
       const toolResults = [];

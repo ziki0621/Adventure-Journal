@@ -47,6 +47,15 @@
         $('#viewSubtitle').textContent = subtitle;
       }
 
+      function applyTheme(theme) {
+        currentTheme = theme || currentTheme;
+        document.documentElement.setAttribute('data-theme', currentTheme);
+        localStorage.setItem(themeKey, currentTheme);
+        document.querySelectorAll('[data-theme]').forEach(btn => {
+          btn.classList.toggle('active', btn.dataset.theme === currentTheme);
+        });
+      }
+
       function applyLanguage() {
         document.documentElement.lang = currentLanguage === 'zh' ? 'zh-CN' : 'en';
         document.querySelector('.brand h1').textContent = tr('brand.title');
@@ -155,6 +164,7 @@
       }
 
       function renderSplitTaskList(list, emptyText, opts = {}) {
+        const showDueBadge = opts.showDueBadge || false;
         if (!list.length) return `<div class="wire"><div class="wire-inner empty serif">${emptyText}</div></div>`;
         const isSpan = (t) => t.end && t.end !== t.due;
         const timed = list.filter((t) => (t.start_time && t.end_time) && !isSpan(t));
@@ -171,7 +181,10 @@
         const timedLabel = currentLanguage === 'zh' ? '已安排时段' : 'Scheduled';
         const untimedLabel = currentLanguage === 'zh' ? '未设定时间' : 'Unscheduled';
         const wrapRow = (t) => {
-          const row = taskRow(t, opts);
+          let row = taskRow(t, opts);
+          if (showDueBadge) {
+            row = row.replace(/(<div class="task-title-row">.*?<\/div>)/s, '$1<span class="overdue-date-badge">'+escapeHtml(formatDate(t.due))+'<\/span>');
+          }
           return conflicts.has(t.id)
             ? row.replace('class="wire task-row', 'class="wire task-row time-conflict')
             : row;
@@ -181,28 +194,6 @@
           <div class="split-task-cols">
             ${renderSplitPanel(timedLabel, timed, wrapRow)}
             ${renderSplitPanel(untimedLabel, untimed, (t) => taskRow(t, opts))}
-          </div>
-        `;
-      }
-
-      function overdueTaskRow(task, opts = {}) {
-        const row = taskRow(task, opts);
-        const dateLabel = `<span class="overdue-date-badge">${escapeHtml(formatDate(task.due))}</span>`;
-        return row.replace(/(<div class="task-title-row">.*?<\/div>)/s, '$1' + dateLabel);
-      }
-
-      function renderOverdueTaskList(list, emptyText, opts = {}) {
-        if (!list.length) return `<div class="wire"><div class="wire-inner empty serif">${emptyText}</div></div>`;
-        const isSpan = (t) => t.end && t.end !== t.due;
-        const timed = list.filter((t) => (t.start_time && t.end_time) && !isSpan(t));
-        const untimed = list.filter((t) => (!t.start_time || !t.end_time) || isSpan(t));
-        const timedLabel = currentLanguage === 'zh' ? '已安排时段' : 'Scheduled';
-        const untimedLabel = currentLanguage === 'zh' ? '未设定时间' : 'Unscheduled';
-
-        return `
-          <div class="split-task-cols">
-            ${renderSplitPanel(timedLabel, timed, (t) => overdueTaskRow(t, opts))}
-            ${renderSplitPanel(untimedLabel, untimed, (t) => overdueTaskRow(t, opts))}
           </div>
         `;
       }

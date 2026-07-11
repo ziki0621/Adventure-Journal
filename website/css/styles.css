@@ -6,7 +6,7 @@
 
       @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@700&display=swap');
 
-      :root {
+      [data-theme="parchment"] {
         --ink: #4a3b2c;
         --paper: #f3ead5;
         --paper-deep: #e3d4bb;
@@ -18,6 +18,103 @@
         --muted: rgba(74, 59, 44, 0.62);
         --paper-texture: linear-gradient(rgba(243, 234, 213, 0.18), rgba(243, 234, 213, 0.18)), url('../assets/paper-bg-2.png') center / cover no-repeat, var(--paper);
         --paper-texture-deep: linear-gradient(rgba(227, 212, 187, 0.34), rgba(227, 212, 187, 0.34)), url('../assets/paper-bg-2.png') center / cover no-repeat, var(--paper-deep);
+      }
+      [data-theme="canvas"] {
+        --ink: #F5F2EB;
+        --paper: #6B7066;
+        --paper-deep: #5A5F55;
+        --paper-soft: #7A7F75;
+        --danger: #E05A5A;
+        --success: #6DA06D;
+        --brass: #D4B26A;
+        --shadow: rgba(30, 35, 30, 0.35);
+        --muted: rgba(255, 255, 255, 0.72);
+        --paper-texture: linear-gradient(rgba(107, 112, 102, 0.5), rgba(107, 112, 102, 0.5)), var(--paper);
+        --paper-texture-deep: linear-gradient(rgba(90, 95, 85, 0.5), rgba(90, 95, 85, 0.5)), var(--paper-deep);
+      }
+      [data-theme="wood"] {
+        --ink: #F5DCB8;
+        --paper: #422416;
+        --paper-deep: #341B0F;
+        --paper-soft: #54301E;
+        --danger: #E06B4B;
+        --success: #7DA06D;
+        --brass: #E0A85B;
+        --shadow: rgba(20, 10, 0, 0.6);
+        --muted: rgba(255, 230, 195, 0.7);
+        --paper-texture: linear-gradient(rgba(66, 36, 22, 0.5), rgba(66, 36, 22, 0.5)), var(--paper);
+        --paper-texture-deep: linear-gradient(rgba(52, 27, 15, 0.5), rgba(52, 27, 15, 0.5)), var(--paper-deep);
+      }
+      [data-theme="film"] {
+        --ink: #2E1808;
+        --paper: #C4A47E;
+        --paper-deep: #B0906A;
+        --paper-soft: #D6B894;
+        --danger: #7A1A1A;
+        --success: #3A5535;
+        --brass: #6B4F2E;
+        --shadow: rgba(56, 34, 15, 0.2);
+        --muted: rgba(56, 34, 15, 0.6);
+        --paper-texture: linear-gradient(rgba(196, 164, 126, 0.5), rgba(196, 164, 126, 0.5)), var(--paper);
+        --paper-texture-deep: linear-gradient(rgba(176, 144, 106, 0.5), rgba(176, 144, 106, 0.5)), var(--paper-deep);
+      }
+
+      .theme-texture { display: none; }
+      [data-theme="parchment"] .theme-texture-parchment { display: block; }
+      [data-theme="canvas"] .theme-texture-canvas { display: block; }
+      [data-theme="wood"] .theme-texture-wood { display: block; }
+      [data-theme="film"] .theme-texture-film { display: block; }
+
+      /* ── Theme-specific small-text legibility ── */
+      [data-theme="canvas"] .task-meta,
+      [data-theme="canvas"] .section-head span,
+      [data-theme="canvas"] .task-time,
+      [data-theme="canvas"] .mc-day-num,
+      [data-theme="wood"] .task-meta,
+      [data-theme="wood"] .section-head span,
+      [data-theme="wood"] .task-time,
+      [data-theme="wood"] .mc-day-num {
+        color: var(--ink);
+        opacity: 0.9;
+      }
+
+      [data-theme="canvas"] .tag,
+      [data-theme="canvas"] .qb-card-meta,
+      [data-theme="wood"] .tag,
+      [data-theme="wood"] .qb-card-meta {
+        color: var(--ink);
+        opacity: 0.85;
+      }
+
+      [data-theme="canvas"] .empty,
+      [data-theme="wood"] .empty {
+        color: var(--ink);
+        opacity: 0.75;
+      }
+
+      .theme-option-btn {
+        flex: 1;
+        min-height: 52px;
+        padding: 6px 4px;
+        border: 1px solid var(--ink);
+        background: var(--paper-texture);
+        cursor: pointer;
+        text-align: center;
+        transition: transform 120ms ease, box-shadow 120ms ease;
+        font-size: 10px;
+        font-weight: 700;
+        color: var(--ink);
+        letter-spacing: 0.06em;
+      }
+      .theme-option-btn:hover { transform: translateY(-1px); box-shadow: 2px 3px 0 var(--shadow); }
+      .theme-option-btn.active { box-shadow: inset 0 0 0 2px var(--ink); }
+      .theme-option-btn .theme-dot {
+        display: block;
+        width: 14px;
+        height: 14px;
+        margin: 0 auto 4px;
+        border-radius: 50%;
+        border: 1px solid var(--ink);
       }
 
       * {
@@ -739,12 +836,6 @@
         padding-top: 20px;
       }
 
-      .quick-add {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
-        gap: 10px;
-      }
-
 .today-tabs {
         position: relative;
         top: 0;
@@ -1177,13 +1268,103 @@
 
       /* ── Dialogue View ─────────────────────── */
       /* ── Sticky Note ───────────────────────── */
+
+      /* ── Day Note Rich Editor ── */
       .day-note-card {
         position: relative;
-        padding: 16px 16px 14px;
+        padding: 12px 14px 14px;
         border: 0.5px solid rgba(74, 59, 44, 0.3);
-        background: #E8D9BE;
-        box-shadow: 2px 2px 4px rgba(74, 59, 44, 0.15);
+        background: var(--paper-texture);
+        box-shadow: 2px 2px 4px rgba(74, 59, 44, 0.12);
       }
+
+      .day-note-card .day-note-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 6px;
+      }
+
+      .day-note-title {
+        font-size: 11px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      .day-note-date {
+        font-size: 8px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        color: var(--muted);
+      }
+
+      .day-note-render {
+        min-height: 72px;
+        padding: 8px 10px;
+        border: 1px solid rgba(74,59,44,0.15);
+        background: rgba(243,234,213,0.2);
+        font: 700 11px/1.8 "Noto Serif SC",serif;
+        letter-spacing: 0.04em;
+        color: var(--ink);
+        overflow: hidden;
+        cursor: pointer;
+        transition: border-color 140ms, background 140ms;
+        position: relative;
+      }
+      .day-note-render:hover { border-color: var(--ink); background: rgba(243,234,213,0.35); }
+      .day-note-render::after { content: '✎'; position:absolute; bottom:4px; right:6px; font-size:9px; opacity:0.25; }
+      .day-note-render h3 { font-size:13px; margin:0 0 4px; }
+      .day-note-render ul { padding-left:16px; margin:2px 0; }
+      .day-note-render li, .day-note-render p { margin:2px 0; }
+      .day-note-render b,.day-note-render strong { font-weight:900; }
+      .day-note-render u { text-decoration:underline; }
+      .day-note-render i,.day-note-render em { font-style:italic; }
+      .day-note-render [data-checkbox] { display:inline-block; width:12px; height:12px; border:1.5px solid var(--ink); margin-right:5px; vertical-align:-2px; text-align:center; font-size:8px; line-height:10px; }
+
+      /* ── Modal toolbar ── */
+      .dn-toolbar {
+        display:flex; align-items:center; gap:4px;
+        padding:8px 0 10px; margin-bottom:6px;
+        border-bottom:1.5px solid var(--ink);
+      }
+      .dn-toolbar button {
+        min-width:28px; height:28px;
+        display:inline-flex; align-items:center; justify-content:center;
+        padding:0 5px; border:1px solid rgba(74,59,44,0.3);
+        background:transparent; color:var(--ink);
+        font-size:11px; font-weight:700; cursor:pointer;
+        transition:border-color 120ms,background 120ms;
+        font-family:inherit;
+      }
+      .dn-toolbar button:hover { border-color:var(--ink); background:rgba(74,59,44,0.05); }
+      .dn-tb-sep { width:1px; height:18px; background:rgba(74,59,44,0.2); margin:0 3px; }
+      .dn-font-sz { width:44px !important; font-size:9px !important; letter-spacing:0.06em; }
+
+      /* ── Editor with ruled lines ── */
+      .dn-editor {
+        min-height:280px; max-height:480px; overflow-y:auto;
+        padding:14px 16px; outline:none;
+        border:1.5px solid var(--ink);
+        background: var(--paper-texture);
+        color:var(--ink);
+        font:700 12px/1.9 "Noto Serif SC",serif;
+        letter-spacing:0.04em;
+        box-shadow:inset 0 0 30px rgba(74,59,44,0.06);
+      }
+      .dn-editor:focus { box-shadow:inset 0 0 30px rgba(74,59,44,0.1), inset 0 -3px 0 var(--ink); }
+      .dn-editor h3 { font-size:16px; margin:0 0 6px; letter-spacing:0.08em; }
+      .dn-editor ul { padding-left:18px; margin:4px 0; }
+      .dn-editor li { margin:3px 0; }
+      .dn-editor b,.dn-editor strong { font-weight:900; }
+      .dn-editor u { text-decoration:underline; }
+      .dn-editor i,.dn-editor em { font-style:italic; }
+      .dn-editor [data-checkbox] { display:inline-block; width:15px; height:15px; border:2px solid var(--ink); margin-right:7px; vertical-align:-3px; text-align:center; cursor:pointer; transition:background 120ms; }
+      .dn-editor [data-checkbox][data-checked="true"] { background:var(--ink); color:var(--paper); }
+
+      /* ── Save footer ── */
+      .dn-footer { display:flex; justify-content:space-between; align-items:center; margin-top:10px; gap:10px; }
+      .dn-footer .dn-chars { font-size:8px; font-weight:700; letter-spacing:0.1em; opacity:0.4; }
 
       .day-note-card::before {
         content: '';
@@ -1927,7 +2108,19 @@
       }
 
       .task-row {
-        transition: opacity 300ms ease, transform 300ms ease;
+        cursor: pointer;
+        transition: opacity 300ms ease, transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 200ms ease;
+      }
+
+      .task-row:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 14px rgba(74, 59, 44, 0.12);
+      }
+
+      .task-row:active {
+        transform: translateY(1px) scale(0.985);
+        box-shadow: 0 2px 4px rgba(74, 59, 44, 0.08);
+        transition: transform 80ms ease, box-shadow 80ms ease;
       }
 
       .task-row.completed .task-title {
@@ -3337,6 +3530,118 @@
         opacity: 0.4;
         pointer-events: none;
       }
+
+
+      /* ── Day Note Rich Editor ── */
+      .day-note-toolbar {
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        padding: 4px 0 8px;
+        border-bottom: 1px solid rgba(74, 59, 44, 0.12);
+        margin-bottom: 8px;
+        flex-wrap: wrap;
+      }
+
+      .day-note-toolbar button {
+        width: 26px;
+        height: 26px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+        border: 1px solid transparent;
+        background: transparent;
+        color: var(--ink);
+        font-size: 12px;
+        cursor: pointer;
+        border-radius: 2px;
+        transition: background 120ms, border-color 120ms;
+        font-family: inherit;
+      }
+
+      .day-note-toolbar button:hover {
+        background: rgba(74, 59, 44, 0.06);
+        border-color: rgba(74, 59, 44, 0.2);
+      }
+
+      .day-note-toolbar button:active {
+        background: rgba(74, 59, 44, 0.12);
+      }
+
+      .tb-sep {
+        width: 1px;
+        height: 16px;
+        background: rgba(74, 59, 44, 0.15);
+        margin: 0 3px;
+      }
+
+      .day-note-editor {
+        min-height: 260px;
+        max-height: 460px;
+        overflow-y: auto;
+        padding: 12px 14px;
+        border: 0.5px solid var(--ink);
+        background: rgba(243, 234, 213, 0.3);
+        color: var(--ink);
+        font: 700 12px/1.8 "Noto Serif SC", serif;
+        letter-spacing: 0.04em;
+        outline: none;
+      }
+
+      .day-note-editor:focus {
+        background: rgba(243, 234, 213, 0.5);
+        box-shadow: inset 0 -2px 0 var(--ink);
+      }
+
+      .day-note-editor h3 {
+        font-size: 16px;
+        margin: 0 0 8px;
+        letter-spacing: 0.08em;
+      }
+
+      .day-note-editor ul {
+        padding-left: 18px;
+        margin: 4px 0;
+      }
+
+      .day-note-editor li { margin: 2px 0; }
+
+      .day-note-card .day-note-input {
+        cursor: default;
+      }
+
+      .day-note-card .day-note-input:hover::after {
+        content: ' ✎';
+        position: absolute;
+        bottom: 4px;
+        right: 4px;
+        font-size: 10px;
+        opacity: 0.3;
+        pointer-events: none;
+        z-index: 2;
+      }
+
+      /* ── Rendered day note (non-editable) ── */
+      .day-note-render {
+        min-height: 80px;
+        padding: 4px 0;
+        font: 700 12px/1.8 "Noto Serif SC", serif;
+        letter-spacing: 0.04em;
+        color: var(--ink);
+        overflow: hidden;
+        cursor: pointer;
+        transition: opacity 120ms;
+      }
+
+      .day-note-render:hover { opacity: 0.8; }
+
+      .day-note-render h3 { font-size: 14px; margin: 0 0 4px; }
+      .day-note-render ul { padding-left: 16px; margin: 2px 0; }
+      .day-note-render li { margin: 1px 0; }
+      .day-note-render b, .day-note-render strong { font-weight: 900; }
+      .day-note-render u { text-decoration: underline; }
+      .day-note-render i, .day-note-render em { font-style: italic; }
 
 /* ── Notes View (手记) ──────────────────── */
       .notes-layout {

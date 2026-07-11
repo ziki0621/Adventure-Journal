@@ -2,6 +2,7 @@
   "name": "adventure-journal",
   "version": "1.0.0",
   "description": "Adventure Journal - Quest Book & Task Manager",
+  "bin": "launcher.js",
   "scripts": {
     "dev": "node backend/server.js",
     "dev:static": "node website/server.mjs"

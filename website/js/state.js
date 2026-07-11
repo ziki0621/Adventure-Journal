@@ -19,6 +19,7 @@
       ];
 
       const languageKey = 'adventure-ledger-language';
+      const themeKey = 'adventure-journal-theme';
       const agentConfigKey = 'adventure-agent-config-v1';
       const appTimeZone = 'Asia/Shanghai';
       function currentDateInAppTimeZone() {
@@ -37,7 +38,8 @@
           diaryDate = fresh;
           todaySelectedDate = fresh;
           selectedDate = fresh;
-          renderView();
+          // Don't re-render if a modal is open (user might be editing)
+          if (!document.querySelector('.modal-backdrop.open')) renderView();
         }
       }, 60000);
       let tasks = [];
@@ -56,6 +58,7 @@
       let selectedDate = '';       // initialized in utils.js after todayOffset is defined
       let viewTransitionTimer = null;
       let currentLanguage = localStorage.getItem(languageKey) || 'zh';
+      let currentTheme = localStorage.getItem(themeKey) || 'parchment';
       let agentMessages = [];
       let agentSaveIndex = 0;      // tracks how many messages have been persisted
       let agentIsStreaming = false;

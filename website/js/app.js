@@ -172,6 +172,44 @@
         return false;
       }
 
+
+      let _dayNoteEditingDate = '';
+
+      function updateDayNoteCharCount() {
+        const ed = $('#dayNoteEditor');
+        const cnt = $('#dayNoteCharCount');
+        if (ed && cnt) cnt.textContent = ed.textContent.length + ' CHARS';
+      }
+
+      function openDayNoteEditor(dateIso) {
+        _dayNoteEditingDate = dateIso;
+        const raw = dayNotes[dateIso] || '';
+        const hasHtml = /<[a-zA-Z][^>]*>/.test(raw);
+        const html = hasHtml ? raw : (raw ? '<p>' + raw.replace(/\n/g, '<br>') + '</p>' : '');
+        const editor = $('#dayNoteEditor');
+        if (editor) editor.innerHTML = html;
+        const dateEl = $('#dayNoteModalDate');
+        if (dateEl) dateEl.textContent = formatDate(dateIso);
+        $('#dayNoteModal').classList.add('open');
+        updateDayNoteCharCount();
+      }
+
+      function saveDayNoteEditor() {
+        const editor = $('#dayNoteEditor');
+        if (!editor) return;
+        const html = editor.innerHTML.trim();
+        dayNotes[_dayNoteEditingDate] = html;
+        setDayNoteAPI(_dayNoteEditingDate, html);
+        $('#dayNoteModal').classList.remove('open');
+        if (activeView === 'today') renderToday();
+        else if (activeView === 'timeline') renderTimeline();
+      }
+
+      function closeDayNoteEditor() {
+        _dayNoteEditingDate = '';
+        $('#dayNoteModal').classList.remove('open');
+      }
+
       function handleNoteAction(event) {
         const control = event.target.closest('[data-note-action]');
         if (!control) return false;
@@ -192,6 +230,7 @@
         return false;
       }
 
+      let _dayNoteDebounceTimer = null;
       function tickSidebarClock() {
         const el = $('#sidebarClock');
         if (!el) return;
@@ -270,6 +309,8 @@
             renderTimeline();
             return;
           }
+          const themeBtn = event.target.closest('[data-theme]');
+          if (themeBtn) { applyTheme(themeBtn.dataset.theme); return; }
           const language = event.target.closest('[data-language]');
           if (language) {
             currentLanguage = language.dataset.language;
@@ -403,14 +444,6 @@
         });
 
         $('#viewContent').addEventListener('input', (event) => {
-          const input = event.target.closest('[data-day-note]');
-          if (input) {
-            const dateIso = input.dataset.dayNote;
-            dayNotes[dateIso] = input.value;
-            if (!dayNotes[dateIso].trim()) delete dayNotes[dateIso];
-            setDayNoteAPI(dateIso, input.value);
-            return;
-          }
           // Auto-save task desc when editing in sticky note
           const taskDesc = event.target.closest('[data-task-desc]');
           if (taskDesc) {
@@ -490,6 +523,71 @@
         $('#closeModal').addEventListener('click', closeEditor);
         $('#saveTask').addEventListener('click', saveEditor);
         $('#deleteTaskFromEditor').addEventListener('click', deleteTaskFromEditor);
+
+        // ── Day Note Rich Editor ──
+        const dnm = $('#dayNoteModal');
+        if (dnm) {
+          dnm.addEventListener('click', (e) => { if (e.target.id === 'dayNoteModal') closeDayNoteEditor(); });
+        }
+        $('#closeDayNoteModal').addEventListener('click', closeDayNoteEditor);
+        $('#saveDayNoteEditor').addEventListener('click', saveDayNoteEditor);
+
+        // Toolbar command buttons
+        document.querySelectorAll('.dn-toolbar button[data-cmd]').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const cmd = btn.dataset.cmd;
+            if (cmd === 'insertCheckbox') {
+              document.execCommand('insertHTML', false, '<span contenteditable="false" data-checkbox data-checked="false" style="display:inline-block;width:16px;height:16px;border:2px solid var(--ink);margin-right:6px;vertical-align:-4px;font-size:11px;font-weight:700;text-align:center;line-height:14px;cursor:pointer;">&nbsp;</span>');
+            } else {
+              document.execCommand(cmd, false, null);
+            }
+            updateDayNoteCharCount();
+            $('#dayNoteEditor')?.focus();
+          });
+        });
+
+        // Handle checkbox toggle in the editor
+        $('#dayNoteEditor')?.addEventListener('click', (e) => {
+          const cb = e.target.closest('[data-checkbox]');
+          if (cb) {
+            const checked = cb.dataset.checked === 'true';
+            cb.dataset.checked = checked ? 'false' : 'true';
+            cb.textContent = checked ? ' ' : '✓';
+            updateDayNoteCharCount();
+          }
+        });
+
+        // Char count + toolbar active state
+        $('#dayNoteEditor')?.addEventListener('input', updateDayNoteCharCount);
+
+        // Double-click day note render → open editor
+        $('#viewContent').addEventListener('dblclick', (e) => {
+          const render = e.target.closest('[data-day-note-render]');
+          if (render) {
+            const dateIso = render.dataset.dayNoteRender;
+            openDayNoteEditor(dateIso);
+            return;
+          }
+        });
+
+        // ── Keyboard shortcuts ──
+        document.addEventListener('keydown', (event) => {
+          if (event.target.closest('input') || event.target.closest('textarea') || event.target.closest('select')) return;
+          if (event.key === 'Escape') {
+            closeEditor(); closeQuestBookEditor(); closeQBItemEditor(); closeNoteEditor();
+            $('#settingsModal').classList.remove('open');
+            return;
+          }
+          if (event.key === 'n' || event.key === 'N') {
+            if (activeView === 'notes') openNoteEditor(null);
+            else if (activeView === 'questbook') openQuestBookEditor(null);
+            else openEditor(null);
+            return;
+          }
+          const viewKeys = { '1': 'today', '2': 'questbook', '3': 'daily', '4': 'side', '5': 'notes' };
+          if (viewKeys[event.key]) { switchView(viewKeys[event.key]); return; }
+        });
+
         $('#closeNoteModal').addEventListener('click', closeNoteEditor);
         $('#saveNote').addEventListener('click', saveNoteEditor);
         const exportBtn = $('#exportDataBtn'); if (exportBtn) exportBtn.addEventListener('click', exportAllData);
@@ -558,6 +656,7 @@
         });
 
         applyLanguage();
+        applyTheme(currentTheme);
         setSidebar(false);
 
         // ── Load all data from API ──

@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="css/styles.css" />
   </head>
   <body>
-    <div class="texture" aria-hidden="true">
+    <div class="texture theme-texture theme-texture-parchment" aria-hidden="true">
       <svg width="100%" height="100%" class="texture-stains">
         <filter id="stains">
           <feTurbulence type="fractalNoise" baseFrequency="0.004" numOctaves="3" />
@@ -27,6 +27,26 @@
       <div class="texture-lines-v"></div>
       <div class="texture-shadow-outer"></div>
       <div class="texture-shadow-inner"></div>
+    </div>
+    <div class="texture theme-texture theme-texture-canvas" aria-hidden="true">
+      <svg width="100%" height="100%" class="texture-stains" style="opacity:0.3;mix-blend-mode:color-burn">
+        <filter id="canvasStains"><feTurbulence type="fractalNoise" baseFrequency="0.008" numOctaves="3" /><feColorMatrix type="saturate" values="0" /></filter>
+        <rect width="100%" height="100%" filter="url(#canvasStains)" /></svg>
+      <div class="absolute inset-0 opacity-[0.12] mix-blend-multiply" style="background-image: repeating-linear-gradient(0deg, transparent, transparent 1px, rgba(0,0,0,0.8) 1px, rgba(0,0,0,0.8) 2px), repeating-linear-gradient(90deg, transparent, transparent 1px, rgba(0,0,0,0.8) 1px, rgba(0,0,0,0.8) 2px); background-size: 3px 3px; position: absolute; inset: 0;"></div>
+      <svg width="100%" height="100%" style="position:absolute;inset:0;opacity:0.15;mix-blend-mode:screen"><filter id="canvasFibers"><feTurbulence type="fractalNoise" baseFrequency="0.4" numOctaves="2" /><feColorMatrix type="saturate" values="0" /></filter><rect width="100%" height="100%" filter="url(#canvasFibers)" /></svg>
+      <div style="position:absolute;inset:0;box-shadow:inset 0 0 120px rgba(40,50,40,0.5)"></div>
+    </div>
+    <div class="texture theme-texture theme-texture-wood" aria-hidden="true">
+      <svg width="100%" height="100%" class="texture-stains" style="opacity:0.35;mix-blend-mode:multiply"><filter id="woodGrain"><feTurbulence type="fractalNoise" baseFrequency="0.004 0.15" numOctaves="3" /><feColorMatrix type="saturate" values="0" /></filter><rect width="100%" height="100%" filter="url(#woodGrain)" /></svg>
+      <svg width="100%" height="100%" style="position:absolute;inset:0;opacity:0.2;mix-blend-mode:color-burn"><filter id="woodKnots"><feTurbulence type="fractalNoise" baseFrequency="0.015" numOctaves="2" /><feColorMatrix type="saturate" values="0" /></filter><rect width="100%" height="100%" filter="url(#woodKnots)" /></svg>
+      <div style="position:absolute;inset:0;background:radial-gradient(ellipse at center, rgba(255,255,255,0.06) 0%, transparent 70%)"></div>
+      <div style="position:absolute;inset:0;box-shadow:inset 0 0 150px rgba(30,15,5,0.85)"></div>
+    </div>
+    <div class="texture theme-texture theme-texture-film" aria-hidden="true">
+      <svg width="100%" height="100%" class="texture-stains" style="opacity:0.4;mix-blend-mode:multiply"><filter id="filmGrain"><feTurbulence type="fractalNoise" baseFrequency="1.5" numOctaves="3" /><feColorMatrix type="saturate" values="0" /></filter><rect width="100%" height="100%" filter="url(#filmGrain)" /></svg>
+      <svg width="100%" height="100%" style="position:absolute;inset:0;opacity:0.3;mix-blend-mode:color-burn"><filter id="filmStains"><feTurbulence type="fractalNoise" baseFrequency="0.005" numOctaves="2" /><feColorMatrix type="saturate" values="0" /></filter><rect width="100%" height="100%" filter="url(#filmStains)" /></svg>
+      <div style="position:absolute;inset:0;opacity:0.15;mix-blend-mode:multiply;background-image:repeating-linear-gradient(90deg, transparent 0px, transparent 150px, rgba(0,0,0,0.8) 150px, rgba(0,0,0,0.8) 151px, transparent 151px, transparent 320px, rgba(0,0,0,0.6) 320px, rgba(0,0,0,0.6) 321.5px, transparent 321.5px), repeating-linear-gradient(90deg, transparent 0px, transparent 55px, rgba(0,0,0,0.4) 55px, rgba(0,0,0,0.4) 55.5px, transparent 55.5px, transparent 480px, rgba(0,0,0,0.9) 480px, rgba(0,0,0,0.9) 482px, transparent 482px)"></div>
+      <div style="position:absolute;inset:0;box-shadow:inset 0 0 220px rgba(40,25,10,0.9)"></div>
     </div>
     <div class="page">
       <div class="app-shell">
@@ -215,6 +235,15 @@
           </div>
           <div class="form-stack">
             <div class="labeled-field">
+              <div class="field-label">主题 / Theme</div>
+              <div class="language-options" id="themeOptions">
+                <button class="theme-option-btn active" type="button" data-theme="parchment"><span class="theme-dot" style="background:#f3ead5;"></span>羊皮纸</button>
+                <button class="theme-option-btn" type="button" data-theme="canvas"><span class="theme-dot" style="background:#6B7066;"></span>帆布</button>
+                <button class="theme-option-btn" type="button" data-theme="wood"><span class="theme-dot" style="background:#422416;"></span>胡桃木</button>
+                <button class="theme-option-btn" type="button" data-theme="film"><span class="theme-dot" style="background:#C4A47E;"></span>胶片</button>
+              </div>
+            </div>
+            <div class="labeled-field">
               <div class="field-label" id="languageLabel">Language</div>
               <div class="language-options">
                 <button class="language-option" type="button" data-language="zh">中文</button>
@@ -237,6 +266,37 @@
       </section>
     </div>
 
+    
+    <div class="modal-backdrop" id="dayNoteModal" role="dialog" aria-modal="true" aria-labelledby="dayNoteModalTitle">
+      <section class="wire modal" style="width: min(100%, 680px);">
+        <div class="wire-inner">
+          <div class="modal-head">
+            <div class="section-title serif" id="dayNoteModalTitle"><span class="diamond"></span><span class="text">Sticky Note</span><span class="diamond"></span></div>
+            <button class="plain-icon-button" type="button" id="closeDayNoteModal" aria-label="Close editor">
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
+            </button>
+          </div>
+          <div class="day-note-toolbar">
+            <button type="button" data-cmd="bold" title="Bold"><b>B</b></button>
+            <button type="button" data-cmd="italic" title="Italic"><i>I</i></button>
+            <button type="button" data-cmd="underline" title="Underline"><u>U</u></button>
+            <span class="tb-sep"></span>
+            <button type="button" data-cmd="h3" title="Heading">H</button>
+            <button type="button" data-cmd="p" title="Normal">¶</button>
+            <span class="tb-sep"></span>
+            <button type="button" data-cmd="insertUnorderedList" title="List">≡</button>
+            <button type="button" data-cmd="insertCheckbox" title="Checkbox">☐</button>
+          </div>
+          <div class="day-note-editor" id="dayNoteEditor" contenteditable="true"></div>
+          <div style="display:flex;justify-content:flex-end;margin-top:10px;gap:8px;">
+            <span style="font-size:8px;opacity:0.5;align-self:center;" id="dayNoteModalDate"></span>
+            <button class="chamfer shaded" type="button" id="saveDayNoteEditor" style="height:34px;width:120px;">
+              <span class="chamfer-outer"><span class="chamfer-mid"><span class="chamfer-line"><span class="chamfer-face">Save</span></span></span></span>
+            </button>
+          </div>
+        </div>
+      </section>
+    </div>
     <div class="modal-backdrop" id="noteModal" role="dialog" aria-modal="true" aria-labelledby="noteModalTitle">
       <section class="wire modal">
         <div class="wire-inner">

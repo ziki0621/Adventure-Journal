@@ -96,14 +96,17 @@
       }
 
       function renderDayNote(dateIso, extraClass = '') {
-        const value = dayNotes[dateIso] || '';
+        const raw = dayNotes[dateIso] || '';
+        // If content looks like HTML, render it; otherwise wrap in <p>
+        const hasHtml = /<[a-zA-Z][^>]*>/.test(raw);
+        const html = hasHtml ? raw : (raw ? '<p>' + raw.replace(/\n/g, '<br>') + '</p>' : '');
         return `
           <div class="day-note-card ${extraClass}">
             <div class="day-note-head">
               <h3 class="day-note-title serif">${dayNoteLabel()}</h3>
               <span class="day-note-date">${escapeHtml(formatDate(dateIso))}</span>
             </div>
-            <textarea class="day-note-input" data-day-note="${dateIso}" placeholder="${dayNotePlaceholder()}">${escapeHtml(value)}</textarea>
+            <div class="day-note-render" data-day-note-render="${dateIso}" title="${currentLanguage === 'zh' ? '双击编辑' : 'Double-click to edit'}">${html || '<span style="opacity:0.3">' + escapeHtml(dayNotePlaceholder()) + '</span>'}</div>
           </div>
         `;
       }
@@ -190,7 +193,7 @@
                   ${isToday && overdue.length ? `
                   <section class="list-section">
                     <div class="section-head"><h3 class="serif">${tr('section.overdue')}</h3><span>${overdue.length} ${tr('unit.contracts')}</span></div>
-                    ${renderOverdueTaskList(overdue, tr('empty.overdue'), {hideDailyDates: true})}
+                    ${renderSplitTaskList(overdue, tr('empty.overdue'), {hideDailyDates: true, showDueBadge: true})}
                   </section>` : ''}
                 </div>
               </div>

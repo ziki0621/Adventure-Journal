@@ -25,16 +25,16 @@
         await fetch(API + '/tasks/' + id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
       }
       async function apiDeleteTask(id) {
-        await fetch(API + '/tasks/' + id, { method: 'DELETE' });
+        fetch(API + '/tasks/' + id, { method: 'DELETE' }).catch(e => console.warn('deleteTask failed:', e.message));
       }
       async function apiArchiveTask(id) {
-        await fetch(API + '/tasks/' + id + '/archive', { method: 'PATCH' });
+        fetch(API + '/tasks/' + id + '/archive', { method: 'PATCH' }).catch(e => console.warn('archiveTask failed:', e.message));
       }
       async function apiUnarchiveTask(id) {
-        await fetch(API + '/tasks/' + id + '/unarchive', { method: 'PATCH' });
+        fetch(API + '/tasks/' + id + '/unarchive', { method: 'PATCH' }).catch(e => console.warn('unarchiveTask failed:', e.message));
       }
       async function apiToggleTask(id) {
-        await fetch(API + '/tasks/' + id + '/toggle', { method: 'PATCH' });
+        fetch(API + '/tasks/' + id + '/toggle', { method: 'PATCH' }).catch(e => console.warn('toggleTask failed:', e.message));
       }
 
       async function loadNotes() {
@@ -169,6 +169,7 @@
         queueCollectionSave('notes', API + '/notes', notes);
       }
       function saveQuestBooks() {
+        _qbFlatCache = null; _qbFlatCacheTag = null;
         queueCollectionSave('questBooks', API + '/quest-books', questBooks);
       }
       function saveDayNotes() {
@@ -205,7 +206,10 @@
       // Flatten quest books into flat records for Today / Timeline views.
       // Returns objects that are references to the original nested data so
       // that mutations (like sticky note desc edits) write through to questBooks.
+            let _qbFlatCache = null, _qbFlatCacheTag = null;
       function flattenQuestBooks() {
+        const tag = questBooks.map(b=>b.id+':'+b.questLines.length+':'+(b.independentQuests||[]).length).join('|');
+        if (_qbFlatCache && _qbFlatCacheTag === tag) return _qbFlatCache;
         const flat = [];
         questBooks.forEach((book) => {
           book.questLines.forEach((line) => {
@@ -232,5 +236,5 @@
             }));
           });
         });
-        return flat;
+        _qbFlatCache = flat; _qbFlatCacheTag = tag; return flat;
       }
